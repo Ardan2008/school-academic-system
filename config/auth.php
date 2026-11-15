@@ -42,6 +42,31 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        'portal' => [
+            'driver' => 'session',
+            'provider' => 'users',
+        ],
+
+        'admin' => [
+            'driver' => 'admin',
+            'provider' => 'users',
+        ],
+
+        'guru' => [
+            'driver' => 'guru',
+            'provider' => 'users',
+        ],
+
+        'siswa' => [
+            'driver' => 'siswa',
+            'provider' => 'users',
+        ],
+
+        'api' => [
+            'driver' => 'jwt',
+            'provider' => 'users',
+        ],
     ],
 
     /*
@@ -66,11 +91,6 @@ return [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', User::class),
         ],
-
-        // 'users' => [
-        //     'driver' => 'database',
-        //     'table' => 'users',
-        // ],
     ],
 
     /*
@@ -95,8 +115,10 @@ return [
     'passwords' => [
         'users' => [
             'provider' => 'users',
+            // Tabel ini dipakai alur atur ulang password internal (App\Services\PasswordResetService),
+            // bukan password broker bawaan framework.
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 60,
+            'expire' => 30,
             'throttle' => 60,
         ],
     ],

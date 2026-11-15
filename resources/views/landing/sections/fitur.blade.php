@@ -1,76 +1,152 @@
 @php
 
+/* Daftar fitur di bawah hanya memuat modul yang sudah berjalan. */
 $features = [
     [
-        'title' => 'Data Siswa',
-        'description' => 'Kelola data siswa secara terstruktur dan mudah untuk mendukung kebutuhan akademik sekolah.',
-        'icon' => 'users-round',
-        'detail' => 'Modul Data Siswa menjadi pusat penyimpanan seluruh informasi peserta didik — mulai dari biodata, riwayat kelas, hingga dokumen pendukung. Semua data tersimpan rapi dalam satu sistem sehingga staf tata usaha maupun wali kelas dapat mengaksesnya kapan saja tanpa perlu berkas fisik.',
+        'title' => 'Akses Berbasis Role',
+        'description' => 'Satu sistem dengan hak akses berbeda untuk Admin, Guru, dan Siswa.',
+        'icon' => 'shield-check',
+        'detail' => 'Setiap pengguna masuk memakai identitas sesuai role-nya: Admin dengan email, Guru dengan NIP, dan Siswa dengan NIS. Setelah login, sistem mengarahkan tiap role ke dashboard dan menu yang paling relevan dengan tanggung jawabnya.',
         'points' => [
-            'Biodata lengkap: identitas, orang tua/wali, dan kontak darurat',
-            'Riwayat perpindahan kelas dan kenaikan tingkat otomatis tercatat',
-            'Status siswa (aktif, pindah, lulus) mudah diperbarui',
-            'Pencarian & filter cepat berdasarkan kelas, angkatan, atau nama',
+            'Identitas login menyesuaikan role: email, NIP, atau NIS',
+            'Dashboard, menu, dan hak akses berbeda tiap role',
+            'Percobaan login berulang otomatis dikunci sementara',
         ],
     ],
     [
-        'title' => 'Data Guru',
-        'description' => 'Kelola informasi guru dengan mudah dan terorganisir dalam satu sistem akademik.',
-        'icon' => 'user-round',
-        'detail' => 'Seluruh informasi tenaga pengajar—dari data pribadi, mata pelajaran yang diampu, hingga jadwal mengajar—terpusat dalam satu tempat. Memudahkan pihak sekolah memantau beban mengajar dan penugasan guru secara menyeluruh.',
+        'title' => 'Dashboard per Role',
+        'description' => 'Ringkasan yang berbeda sesuai kebutuhan tiap role.',
+        'icon' => 'layout-dashboard',
+        'detail' => 'Admin memperoleh ringkasan nilai sekolah, aktivitas terbaru, dan notifikasi sistem. Guru melihat rata-rata nilai kelas beserta data siswa. Siswa mendapat perkembangan nilai, jadwal hari ini, tugas, dan notifikasi terbaru.',
         'points' => [
-            'Biodata guru beserta status kepegawaian',
-            'Daftar mata pelajaran dan kelas yang diampu',
-            'Jadwal mengajar otomatis tersinkron dengan Jadwal Akademik',
-            'Riwayat penugasan dari tahun ajaran sebelumnya',
+            'Admin: grafik rata-rata nilai dan aktivitas terbaru',
+            'Guru: rata-rata nilai kelas dan data siswa',
+            'Siswa: perkembangan nilai, jadwal, dan tugas hari ini',
+            'Notifikasi terbaru langsung tampil di dashboard',
+        ],
+    ],
+    [
+        'title' => 'Data Guru & Siswa',
+        'description' => 'Kelola data guru dan siswa secara terstruktur.',
+        'icon' => 'contact-round',
+        'detail' => 'Admin menambah, mengubah, dan menghapus data guru (ber-NIP) dan siswa (ber-NIS) beserta rombel, jurusan, dan statusnya. Tersedia pencarian cepat, filter kelas dan jurusan, serta ekspor Excel — password awal siswa ikut tercetak di dalamnya. Guru dapat melihat dan mengekspor daftar siswa kelasnya.',
+        'points' => [
+            'Tambah, ubah, dan hapus data guru & siswa',
+            'NIP untuk guru dan NIS untuk siswa saat login',
+            'Filter kelas, jurusan, tingkat, dan status',
+            'Pencarian cepat berdasarkan nama dan identitas',
+            'Ekspor Excel beserta password awal siswa',
+        ],
+    ],
+    [
+        'title' => 'Kelas & Jurusan',
+        'description' => 'Atur struktur rombel, jurusan, dan wali kelas.',
+        'icon' => 'school',
+        'detail' => 'Admin mengelola data jurusan serta kelas/rombel — termasuk wali kelasnya — sebagai dasar penempatan siswa, jadwal, dan penilaian. Jumlah siswa per kelas terhitung otomatis, dan kelas yang sudah berisi siswa terlindungi dari perubahan yang merusak data.',
+        'points' => [
+            'Tambah, ubah, dan hapus data jurusan',
+            'Kelas/rombel lengkap dengan wali kelas',
+            'Jumlah siswa per kelas otomatis terhitung',
+            'Kelas berisi siswa terlindungi dari perubahan merusak',
+            'Ekspor daftar kelas dan jurusan ke Excel',
         ],
     ],
     [
         'title' => 'Mata Pelajaran',
-        'description' => 'Kelola mata pelajaran untuk membantu pengaturan kegiatan akademik sekolah.',
+        'description' => 'Kelola mata pelajaran dan guru pengampunya.',
         'icon' => 'book-open',
-        'detail' => 'Atur struktur kurikulum dengan mudah, mulai dari penamaan mata pelajaran, tingkat kelas yang bersangkutan, hingga guru pengampunya. Perubahan kurikulum antar tahun ajaran juga dapat dikelola tanpa mengganggu data yang sudah ada.',
+        'detail' => 'Admin menambah, mengubah, dan menghapus mata pelajaran serta menentukan guru pengampu tiap mapel. Guru membuka daftar mapel diampu lengkap dengan statistik nilainya, dan seluruh daftar dapat diekspor ke Excel.',
         'points' => [
-            'Pengelompokan mata pelajaran per tingkat & jurusan',
-            'Penentuan guru pengampu untuk tiap mata pelajaran',
-            'Pengaturan bobot nilai sesuai kurikulum sekolah',
-            'Riwayat perubahan kurikulum antar tahun ajaran',
+            'Tambah, ubah, dan hapus mata pelajaran',
+            'Penempatan guru pengampu tiap mapel',
+            'Guru melihat mapel diampu beserta statistik nilai',
+            'Ekspor daftar mapel ke Excel',
         ],
     ],
     [
-        'title' => 'Jadwal Akademik',
-        'description' => 'Atur dan kelola jadwal akademik agar kegiatan pembelajaran lebih terorganisir.',
+        'title' => 'Manajemen Akun',
+        'description' => 'Kelola akun pengguna sekaligus dalam jumlah banyak.',
+        'icon' => 'users-round',
+        'detail' => 'Satu tempat untuk mengelola akun Guru dan Siswa beserta kelasnya. Data akun dapat diimpor massal dari berkas CSV, diunduh kembali, dan dicetak lewat slip password awal. Reset password juga bisa dilakukan langsung dari menu ini.',
+        'points' => [
+            'Tambah, ubah, status, dan hapus akun pengguna',
+            'Impor akun massal dari berkas CSV',
+            'Ekspor daftar akun ke berkas CSV',
+            'Slip password awal pengguna',
+            'Reset password langsung dari menu akun',
+        ],
+    ],
+    [
+        'title' => 'Pengajuan Reset Password',
+        'description' => 'Alur lupa password yang aman dan bisa dipantau.',
+        'icon' => 'inbox',
+        'detail' => 'Guru dan Siswa dapat mengajukan reset password dari halaman login. Admin melihat daftar pengajuan beserta identitas pemohon, lalu menyetujui atau menolak. Token reset dikirim ke email dan hanya berlaku sekali.',
+        'points' => [
+            'Diajukan lewat tombol Lupa Password di halaman login',
+            'Admin menyetujui atau menolak pengajuan',
+            'Token reset berlaku 30 menit dan hanya sekali pakai',
+            'Status pengajuan tercatat di daftar admin',
+        ],
+    ],
+    [
+        'title' => 'Profil & Keamanan Akun',
+        'description' => 'Kelola data diri dan keamanan akun sendiri.',
+        'icon' => 'user-round-cog',
+        'detail' => 'Setiap pengguna dapat membuka profilnya untuk memperbarui data diri. Guru dan Siswa juga diminta membuat password baru saat pertama kali masuk, serta dapat menggantinya kapan saja melalui menu profil.',
+        'points' => [
+            'Buat password baru sekali saat kunjungan pertama',
+            'Ganti password kapan saja lewat menu profil',
+            'Perbarui data diri sesuai role',
+            'Token reset otomatis hangus setelah dipakai',
+        ],
+    ],
+    [
+        'title' => 'Input & Rekap Nilai',
+        'description' => 'Guru input nilai dan rekap dalam satu alur.',
+        'icon' => 'notebook-pen',
+        'detail' => 'Guru memasukkan nilai tiap siswa per mata pelajaran dan periode, dengan validasi bahwa hanya mapel yang diampu yang bisa diisi. Rekap nilai tersedia per siswa, per kelas, maupun per mapel, lengkap dengan sebaran nilai — semuanya bisa diekspor ke Excel.',
+        'points' => [
+            'Input nilai per siswa, mapel, dan periode',
+            'Hanya mapel yang diampu yang bisa diinput',
+            'Rekap per siswa, kelas, dan mata pelajaran',
+            'Ekspor rekap dan laporan sebaran nilai ke Excel',
+        ],
+    ],
+    [
+        'title' => 'Rapor & Riwayat Siswa',
+        'description' => 'Siswa memantau nilai, rapor, dan riwayat akademik.',
+        'icon' => 'file-text',
+        'detail' => 'Siswa melihat daftar nilai tiap semester beserta ringkasan ketuntasan — jumlah mapel, rata-rata, dan jumlah mapel yang tuntas — yang bisa dicetak sebagai rapor. Riwayat akademik menampilkan perkembangan nilai lintas periode dalam bentuk tabel dan grafik.',
+        'points' => [
+            'Rapor nilai per semester dan tahun ajaran',
+            'Ringkasan rata-rata dan ketuntasan belajar',
+            'Cetak rapor langsung dari browser',
+            'Riwayat nilai dengan grafik perkembangan',
+        ],
+    ],
+    [
+        'title' => 'Laporan Akademik',
+        'description' => 'Laporan sekolah untuk admin dan guru.',
+        'icon' => 'chart-column',
+        'detail' => 'Admin memperoleh ringkasan akademik sekolah — rata-rata nilai, rata-rata KKM, dan persentase ketuntasan — lengkap dengan rekap per kelas, per mata pelajaran beserta guru pengampu, serta grafik perkembangan lintas periode. Guru dapat membuka laporan serupa untuk mapel yang diampu. Seluruh laporan bisa diekspor ke Excel.',
+        'points' => [
+            'Ringkasan nilai sekolah dengan filter tahun dan semester',
+            'Rekap per kelas dan per mata pelajaran',
+            'Grafik perkembangan nilai lintas periode',
+            'Guru melihat laporan mapel diampu',
+            'Ekspor laporan ke Excel',
+        ],
+    ],
+    [
+        'title' => 'Jadwal, Tugas & Materi',
+        'description' => 'Informasi belajar harian siswa dalam satu layar.',
         'icon' => 'calendar-days',
-        'detail' => 'Susun jadwal pelajaran untuk setiap kelas dengan tampilan kalender yang jelas. Sistem membantu mendeteksi potensi bentrok jadwal antar guru maupun ruang kelas sehingga proses penyusunan menjadi lebih cepat dan minim kesalahan.',
+        'detail' => 'Siswa melihat jadwal pelajaran sepekan sesuai rombelnya, daftar tugas beserta tenggat dan status pengumpulannya, serta materi belajar tiap mata pelajaran. Ringkasan jadwal dan tugas hari ini juga tampil langsung di dashboard siswa.',
         'points' => [
-            'Penyusunan jadwal per kelas dan per guru',
-            'Deteksi otomatis jika ada jadwal yang bentrok',
-            'Kalender akademik untuk hari libur dan agenda sekolah',
-            'Notifikasi perubahan jadwal ke guru terkait',
-        ],
-    ],
-    [
-        'title' => 'Nilai & Akademik',
-        'description' => 'Kelola nilai dan informasi akademik siswa secara terpusat dan mudah diakses.',
-        'icon' => 'graduation-cap',
-        'detail' => 'Guru dapat menginput nilai tugas, ujian, hingga nilai akhir langsung ke sistem. Rekap nilai per semester dan rapor otomatis tersusun, membantu wali kelas dan orang tua memantau perkembangan akademik siswa secara real-time.',
-        'points' => [
-            'Input nilai per mata pelajaran dan jenis penilaian',
-            'Rapor otomatis tersusun tiap akhir semester',
-            'Rekap nilai dan rata-rata kelas yang mudah dibaca',
-            'Grafik perkembangan akademik tiap siswa',
-        ],
-    ],
-    [
-        'title' => 'Informasi Sekolah',
-        'description' => 'Sajikan berbagai informasi sekolah agar dapat diakses dengan lebih mudah.',
-        'icon' => 'school',
-        'detail' => 'Tampilkan profil, pengumuman, dan kegiatan sekolah dalam satu tempat yang mudah diakses siswa, guru, maupun orang tua. Informasi penting tidak lagi tercecer di berbagai media terpisah.',
-        'points' => [
-            'Profil dan visi-misi sekolah',
-            'Papan pengumuman resmi yang selalu terbarui',
-            'Galeri kegiatan dan prestasi sekolah',
-            'Informasi kontak dan lokasi sekolah',
+            'Jadwal pelajaran per hari untuk rombel siswa',
+            'Daftar tugas lengkap dengan tenggat dan status',
+            'Materi belajar per mata pelajaran',
+            'Ringkasan jadwal dan tugas hari ini di dashboard',
         ],
     ],
 ];
@@ -96,10 +172,8 @@ $features = [
         filter: none;
     }
 
-    /* Jeda kartu mengikuti jumlah kolom:
-       1 kolom  -> tanpa jeda
-       2 kolom  -> --d2 (kiri ke kanan per 2 kartu)
-       3 kolom  -> --d3 (kiri ke kanan per 3 kartu) */
+    /* Jeda kartu mengikuti jumlah kolom: 1 kolom tanpa jeda, 2 kolom pakai --d2,
+       3 kolom pakai --d3 (kiri ke kanan per baris) */
     #fitur .fitur-item {
         --d: 0s;
     }
@@ -246,7 +320,7 @@ $features = [
                 <div
                     class="inline-flex items-center gap-2
                            rounded-full bg-blue-50 px-3 py-1.5
-                           text-[10px] font-medium uppercase
+                           text-[11px] font-medium uppercase
                            tracking-wider text-blue-600"
                 >
                     <span
@@ -307,7 +381,6 @@ $features = [
                                sm:p-6"
                     >
 
-                        {{-- Spotlight --}}
                         <span
                             aria-hidden="true"
                             class="fitur-spotlight pointer-events-none
@@ -330,7 +403,6 @@ $features = [
                         {{-- Mobile: ikon di kiri, teks di kanan. Tablet ke atas: ikon di atas teks. --}}
                         <div class="relative flex items-start gap-4 sm:block">
 
-                            {{-- Icon --}}
                             <div
                                 class="fitur-icon flex h-11 w-11 shrink-0
                                        items-center justify-center rounded-xl
@@ -344,33 +416,10 @@ $features = [
                                        group-hover:shadow-lg
                                        group-hover:shadow-blue-600/30"
                             >
-                                @switch($feature['icon'])
-
-                                    @case('users-round')
-                                        <x-lucide-users-round class="h-5 w-5" />
-                                        @break
-
-                                    @case('user-round')
-                                        <x-lucide-user-round class="h-5 w-5" />
-                                        @break
-
-                                    @case('book-open')
-                                        <x-lucide-book-open class="h-5 w-5" />
-                                        @break
-
-                                    @case('calendar-days')
-                                        <x-lucide-calendar-days class="h-5 w-5" />
-                                        @break
-
-                                    @case('graduation-cap')
-                                        <x-lucide-graduation-cap class="h-5 w-5" />
-                                        @break
-
-                                    @case('school')
-                                        <x-lucide-school class="h-5 w-5" />
-                                        @break
-
-                                @endswitch
+                                <x-dynamic-component
+                                    :component="'lucide-' . $feature['icon']"
+                                    class="h-5 w-5"
+                                />
                             </div>
 
 
@@ -393,10 +442,10 @@ $features = [
                                     data-feature-open
                                     data-title="{{ $feature['title'] }}"
                                     class="fitur-link mt-3 inline-flex cursor-pointer items-center
-                                           gap-1 border-0 bg-transparent p-0 py-1 text-left text-[13px]
+                                           gap-1 border-0 bg-transparent px-0 py-2.5 text-left text-[13px]
                                            font-medium text-blue-600 transition
                                            hover:text-blue-700
-                                           focus-visible:outline focus-visible:outline-2
+                                           focus-visible:outline-2
                                            focus-visible:outline-offset-2
                                            focus-visible:outline-blue-500
                                            sm:mt-4 sm:py-0 sm:text-xs"
@@ -426,36 +475,13 @@ $features = [
                                             class="flex h-12 w-12 shrink-0 items-center justify-center
                                                    rounded-xl bg-blue-50 text-blue-600"
                                         >
-                                            @switch($feature['icon'])
-
-                                                @case('users-round')
-                                                    <x-lucide-users-round class="h-6 w-6" />
-                                                    @break
-
-                                                @case('user-round')
-                                                    <x-lucide-user-round class="h-6 w-6" />
-                                                    @break
-
-                                                @case('book-open')
-                                                    <x-lucide-book-open class="h-6 w-6" />
-                                                    @break
-
-                                                @case('calendar-days')
-                                                    <x-lucide-calendar-days class="h-6 w-6" />
-                                                    @break
-
-                                                @case('graduation-cap')
-                                                    <x-lucide-graduation-cap class="h-6 w-6" />
-                                                    @break
-
-                                                @case('school')
-                                                    <x-lucide-school class="h-6 w-6" />
-                                                    @break
-
-                                            @endswitch
+                                            <x-dynamic-component
+                                                :component="'lucide-' . $feature['icon']"
+                                                class="h-6 w-6"
+                                            />
                                         </div>
                                         <div>
-                                            <p class="text-[10px] font-medium uppercase tracking-wider text-blue-600">
+                                            <p class="text-[11px] font-medium uppercase tracking-wider text-blue-600">
                                                 Fitur Unggulan
                                             </p>
                                             <h3 class="text-lg font-semibold text-gray-900">
@@ -512,7 +538,7 @@ $features = [
             data-modal-panel
             role="dialog"
             aria-modal="true"
-            class="fitur-modal-panel relative z-10 max-h-[85vh] w-full overflow-y-auto
+            class="fitur-modal-panel relative z-10 max-h-[85dvh] w-full overflow-y-auto overscroll-contain
                    rounded-t-3xl bg-white p-6 shadow-2xl
                    sm:max-w-lg sm:rounded-3xl sm:p-8"
         >
@@ -520,9 +546,9 @@ $features = [
                 type="button"
                 data-modal-close
                 aria-label="Tutup"
-                class="absolute right-4 top-4 flex h-9 w-9 items-center justify-center
+                class="absolute right-4 top-4 flex h-10 w-10 items-center justify-center
                        rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-700
-                       focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500"
+                       focus-visible:outline-2 focus-visible:outline-blue-500"
             >
                 <svg class="h-4.5 w-4.5" viewBox="0 0 20 20" fill="none" stroke="currentColor"
                      stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

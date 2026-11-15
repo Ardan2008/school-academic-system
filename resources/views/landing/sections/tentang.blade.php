@@ -167,12 +167,11 @@
 
     <div
         class="mx-auto grid max-w-7xl items-center gap-10
-               px-4 py-16
-               sm:gap-12 sm:px-6 sm:py-20
-               lg:grid-cols-2 lg:gap-16 lg:py-24"
+               px-4 py-14
+               sm:gap-12 sm:px-6 sm:py-16
+               lg:grid-cols-2 lg:gap-16 lg:py-20"
     >
 
-        {{-- Image --}}
         <div
             data-reveal="image"
             style="--d: 0s"
@@ -200,7 +199,7 @@
                 <div
                     class="mb-4 inline-flex items-center gap-2
                            rounded-full bg-blue-50 px-3 py-1.5
-                           text-[10px] font-medium uppercase
+                           text-[11px] font-medium uppercase
                            tracking-wider text-blue-600 sm:mb-5"
                 >
                     <span
@@ -212,7 +211,6 @@
                 </div>
             </div>
 
-            {{-- Heading --}}
             <h2
                 data-reveal
                 style="--d: .25s"
@@ -232,7 +230,6 @@
                 </span>
             </h2>
 
-            {{-- Description --}}
             <p
                 data-reveal
                 style="--d: .35s"
@@ -275,7 +272,7 @@
 
                         <div class="min-w-0">
                             <p class="text-xl font-semibold text-gray-900">
-                                <span data-count="2000">2000</span>+
+                                <span data-count="{{ $totalSiswa }}">{{ $totalSiswa }}</span>
                             </p>
 
                             <p class="text-xs text-gray-500">
@@ -313,7 +310,7 @@
 
                         <div class="min-w-0">
                             <p class="text-xl font-semibold text-gray-900">
-                                <span data-count="2000">2000</span>+
+                                <span data-count="{{ $guruAktif }}">{{ $guruAktif }}</span>
                             </p>
 
                             <p class="text-xs text-gray-500">

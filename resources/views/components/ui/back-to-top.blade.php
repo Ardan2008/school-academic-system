@@ -1,4 +1,3 @@
-{{-- Back to Top (Glass) --}}
 <style>
     @keyframes btt-bubble-rise {
         0%   { transform: translateY(0) scale(.3); opacity: 0; }
@@ -80,7 +79,6 @@
         />
     </svg>
 
-    {{-- Glass Disc --}}
     <span
         class="btt-glass absolute inset-1.25 overflow-hidden rounded-full
                bg-[#7C9CC4]/25 text-slate-800
@@ -105,7 +103,6 @@
                    group-focus-visible:scale-[1.15]"
         ></span>
 
-        {{-- Floating Bubbles (animasi saat hover) --}}
         <span class="btt-bubble absolute bottom-1 left-2 h-1.5 w-1.5 rounded-full bg-white/80"
               style="animation-delay: 0s"></span>
         <span class="btt-bubble absolute bottom-1 left-4.75 h-2 w-2 rounded-full bg-white/70"
@@ -113,7 +110,6 @@
         <span class="btt-bubble absolute bottom-1 right-2 h-1 w-1 rounded-full bg-white/85"
               style="animation-delay: .7s"></span>
 
-        {{-- Icon --}}
         <span class="relative flex h-full w-full items-center justify-center">
             <x-lucide-arrow-up
                 class="h-5 w-5 stroke-[2.5] transition-transform duration-300

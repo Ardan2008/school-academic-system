@@ -18,7 +18,6 @@
            data-[open=true]:bg-[#FDFDFD]"
 >
 
-    {{-- Backdrop (mobile only) --}}
     <div
         id="nav-backdrop"
         aria-hidden="true"
@@ -48,13 +47,11 @@
                motion-reduce:transition-none"
     >
 
-        {{-- Logo --}}
         <a href="{{ route('beranda') }}"
            class="text-sm font-bold tracking-wide text-blue-600">
             SASKANSA
         </a>
 
-        {{-- Navigasi desktop --}}
         <ul class="hidden items-center gap-8 text-xs font-medium text-gray-700 md:flex">
             @foreach ($links as $link)
                 <li>
@@ -75,16 +72,17 @@
             @endforeach
         </ul>
 
-        {{-- Tombol Masuk (desktop) --}}
         <a href="{{ route('login') }}"
+           data-loading-link
+           data-loading-text="Menuju Halaman Login..."
            class="hidden h-8 items-center rounded-lg border border-blue-500 px-5
                   text-xs font-medium text-blue-600 transition-all duration-500
-                  ease-out hover:bg-blue-50 md:inline-flex
+                  ease-out hover:border-blue-600 hover:bg-blue-600 hover:text-white
+                  md:inline-flex
                   group-data-[scrolled=true]:rounded-2xl">
             Masuk
         </a>
 
-        {{-- Tombol hamburger (mobile) --}}
         <button
             id="nav-toggle"
             type="button"
@@ -93,7 +91,7 @@
             aria-label="Buka menu"
             class="relative -mr-1 flex h-10 w-10 items-center justify-center rounded-full
                    text-gray-700 transition hover:bg-blue-50 hover:text-blue-600
-                   focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2
+                   focus-visible:outline-2 focus-visible:outline-offset-2
                    focus-visible:outline-blue-500 md:hidden"
         >
             <span class="sr-only">Menu</span>
@@ -112,10 +110,10 @@
 
     </nav>
 
-    {{-- Panel menu mobile --}}
     <div
         id="mobile-menu"
         class="pointer-events-none invisible absolute inset-x-4 top-[4.5rem] origin-top
+               max-h-[calc(100dvh-6rem)] overflow-y-auto overscroll-contain
                -translate-y-3 scale-95 rounded-3xl border border-gray-100 bg-white p-3
                opacity-0 shadow-xl shadow-gray-200/70
                transition-[opacity,transform,visibility] duration-300 ease-out
@@ -141,7 +139,7 @@
                        class="nav-link-mobile flex items-center justify-between rounded-2xl px-4 py-3
                               text-base font-medium text-gray-800 transition-colors duration-300
                               hover:bg-blue-50 hover:text-blue-600
-                              focus-visible:outline focus-visible:outline-2
+                              focus-visible:outline-2
                               focus-visible:outline-blue-500">
                         {{ $link['label'] }}
                         <svg data-chevron class="h-4 w-4 text-gray-300 transition-colors duration-300" viewBox="0 0 20 20" fill="none"
@@ -163,10 +161,14 @@
                    motion-reduce:transition-none"
         >
             <a href="{{ route('login') }}"
+               data-loading-link
+               data-loading-text="Menuju Halaman Login..."
                data-menu-link
-               class="flex h-11 w-full items-center justify-center rounded-2xl bg-blue-600
+               class="flex h-11 w-full items-center justify-center rounded-2xl border
+                      border-transparent bg-blue-600
                       text-sm font-semibold text-white shadow-md shadow-blue-600/25
-                      transition hover:bg-blue-700 active:scale-[0.98]">
+                      transition hover:border-blue-300 hover:bg-white hover:text-blue-600
+                      active:scale-[0.98]">
                 Masuk
             </a>
         </div>

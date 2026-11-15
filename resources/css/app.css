@@ -34,3 +34,28 @@
         font-family: var(--font-body);
     }
 }
+
+/* -------- SweetAlert2 theme (biru SASKANSA) -------- */
+
+/* Ikon success biru (bawaan hijau) */
+.swal2-icon.swal2-success {
+    color: #2563eb;
+    border-color: #2563eb;
+}
+
+.swal2-icon.swal2-success .swal2-success-ring {
+    border-color: #2563eb;
+}
+
+.swal2-icon.swal2-success [class^='swal2-success-line'] {
+    background-color: #2563eb;
+}
+
+.swal2-icon.swal2-success .swal2-success-fix {
+    background-color: #ffffff;
+}
+
+/* Progress bar timer mengikuti warna biru aplikasi */
+.swal2-timer-progress-bar {
+    background-color: #2563eb;
+}

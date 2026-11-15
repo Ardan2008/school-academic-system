@@ -84,26 +84,10 @@
         animation-delay: 1.3s;
     }
 
-    /* Tombol: kilau berkala */
-    @keyframes ajakan-shine {
-        0%, 70% { transform: translateX(-120%); }
-        100%    { transform: translateX(120%); }
-    }
-
-    #ajakan .ajakan-shine {
-        animation: ajakan-shine 4.5s ease-in-out infinite;
-    }
-
     /* Efek hover hanya untuk perangkat yang punya hover */
     @media (hover: hover) {
         #ajakan .ajakan-card:hover .ajakan-icon svg {
             animation: ajakan-icon-pop .6s ease-in-out;
-        }
-
-        #ajakan .ajakan-btn:hover .ajakan-shine {
-            animation: none;
-            transform: translateX(120%);
-            transition: transform .7s ease-out;
         }
     }
 
@@ -120,7 +104,6 @@
         #ajakan .ajakan-blob-b,
         #ajakan .ajakan-icon-box,
         #ajakan .ajakan-ripple,
-        #ajakan .ajakan-shine,
         #ajakan .ajakan-card:hover .ajakan-icon svg {
             animation: none;
         }
@@ -142,7 +125,6 @@
                        lg:px-10"
             >
 
-                {{-- Background Decoration --}}
                 <span
                     aria-hidden="true"
                     class="ajakan-blob-a pointer-events-none absolute
@@ -157,7 +139,6 @@
                            bg-sky-200/40 blur-3xl"
                 ></span>
 
-                {{-- Spotlight --}}
                 <span
                     aria-hidden="true"
                     class="ajakan-spotlight pointer-events-none absolute
@@ -165,14 +146,12 @@
                            duration-300 group-hover:opacity-100"
                 ></span>
 
-                {{-- Icon --}}
                 <div
                     class="ajakan-item relative shrink-0"
                     style="--d: .15s"
                 >
                     <div class="ajakan-icon-box relative h-14 w-14 sm:h-16 sm:w-16">
 
-                        {{-- Ripple --}}
                         <span
                             aria-hidden="true"
                             class="ajakan-ripple absolute inset-0
@@ -196,7 +175,6 @@
                     </div>
                 </div>
 
-                {{-- Text --}}
                 <div class="relative min-w-0 flex-1 text-center md:text-left">
 
                     <h2
@@ -220,7 +198,6 @@
 
                 </div>
 
-                {{-- Button --}}
                 <div
                     class="ajakan-item relative w-full shrink-0 sm:w-auto"
                     style="--d: .45s"
@@ -228,28 +205,23 @@
 
                     <a
                         href="{{ route('login') }}"
+                        data-loading-link
+                        data-loading-text="Menuju Halaman Login..."
                         class="ajakan-btn group/btn relative inline-flex
                                w-full items-center justify-center gap-2.5
-                               overflow-hidden rounded-lg bg-blue-600
+                               overflow-hidden rounded-lg border
+                               border-transparent bg-blue-600
                                px-5 py-3.5 text-sm font-medium text-white
                                transition duration-300
-                               hover:-translate-y-0.5 hover:bg-blue-700
+                               hover:-translate-y-0.5 hover:border-blue-300
+                               hover:bg-white hover:text-blue-600
                                hover:shadow-lg hover:shadow-blue-600/25
-                               focus-visible:outline focus-visible:outline-2
+                               focus-visible:outline-2
                                focus-visible:outline-offset-2
                                focus-visible:outline-blue-500
                                active:translate-y-0 active:scale-[0.98]
                                sm:w-auto sm:py-3 sm:text-xs"
                     >
-                        {{-- Shine --}}
-                        <span
-                            aria-hidden="true"
-                            class="ajakan-shine pointer-events-none absolute
-                                   inset-0 bg-linear-to-r
-                                   from-transparent via-white/25
-                                   to-transparent"
-                        ></span>
-
                         <span class="relative">
                             Mulai Sekarang
                         </span>
@@ -268,7 +240,6 @@
 
     </div>
 
-    {{-- Script: Reveal + Spotlight --}}
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const section = document.getElementById('ajakan');

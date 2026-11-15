@@ -104,15 +104,13 @@
 
     <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
 
-        {{-- Heading --}}
         <div class="mx-auto max-w-2xl text-center">
 
-            {{-- Badge --}}
             <div data-reveal style="--d: 0s">
                 <div
                     class="mb-4 inline-flex items-center gap-2
                            rounded-full bg-blue-50 px-3 py-1.5
-                           text-[10px] font-medium uppercase
+                           text-[11px] font-medium uppercase
                            tracking-wider text-blue-600 sm:mb-5"
                 >
                     <span
@@ -124,7 +122,6 @@
                 </div>
             </div>
 
-            {{-- Title --}}
             <h2
                 data-reveal
                 style="--d: .1s"
@@ -134,7 +131,6 @@
                 Manfaat SASKANSA
             </h2>
 
-            {{-- Subtitle --}}
             <p
                 data-reveal
                 style="--d: .2s"
@@ -173,7 +169,6 @@
                                sm:p-6"
                     >
 
-                        {{-- Spotlight --}}
                         <span
                             aria-hidden="true"
                             class="manfaat-spotlight pointer-events-none
@@ -186,7 +181,6 @@
 
                             <div class="flex items-center gap-3">
 
-                                {{-- Icon --}}
                                 <div
                                     class="flex h-10 w-10 shrink-0
                                            items-center justify-center
@@ -228,7 +222,6 @@
 
     </div>
 
-    {{-- Reveal + Card Spotlight --}}
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const section = document.getElementById('manfaat');

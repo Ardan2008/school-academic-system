@@ -1,19 +1,35 @@
 @php
+    $loginFields = collect(\App\Support\LoginIdentifier::frontendPayload())
+        ->map(fn (array $meta) => $meta['label'] . ': ' . $meta['input_label'] . ' dan password')
+        ->values()
+        ->all();
+
     $steps = [
         [
             'icon' => 'log-in',
-            'title' => 'Login Akun',
-            'text' => 'Masukkan username dan password yang telah ditentukan oleh Admin atau Pusat untuk mengakses akun SASKANSA.',
+            'title' => 'Pilih Role & Login',
+            'text' => 'Pilih role yang kamu gunakan, lalu isi data login sesuai role tersebut.',
+            'points' => $loginFields,
         ],
         [
             'icon' => 'key-round',
-            'title' => 'Atur Password',
-            'text' => 'Setelah berhasil login, pengguna diarahkan ke halaman Atur Password untuk mengganti password sesuai dengan keinginan.',
+            'title' => 'Buat Password Baru',
+            'text' => 'Form ini hanya muncul satu kali saat kunjungan pertama.',
+            'points' => [
+                'Berlaku untuk role Guru dan Siswa',
+                'Ganti password bawaan dengan password pilihanmu',
+                'Setelah berhasil, langsung menuju dashboard',
+            ],
         ],
         [
             'icon' => 'layout-dashboard',
             'title' => 'Akses Dashboard',
-            'text' => 'Setelah password berhasil diperbarui, pengguna akan diarahkan ke dashboard sesuai hak akses dan kebutuhan masing-masing.',
+            'text' => 'Setiap role diarahkan ke dashboard sesuai hak akses masing-masing.',
+            'points' => [
+                'Admin: kelola data master, akun, laporan, dan backup database',
+                'Guru: pantau data siswa, input nilai, rekap nilai, dan laporan',
+                'Siswa: lihat jadwal, tugas & materi, riwayat akademik, dan rapor',
+            ],
         ],
     ];
 @endphp
@@ -132,15 +148,13 @@
 
     <div class="mx-auto max-w-7xl px-4 py-14 sm:px-6 sm:py-16 lg:py-20">
 
-        {{-- Heading --}}
         <div class="mx-auto max-w-2xl text-center">
 
-            {{-- Badge --}}
             <div data-reveal style="--d: 0s">
                 <div
                     class="mb-4 inline-flex items-center gap-2
                            rounded-full bg-blue-50 px-3 py-1.5
-                           text-[10px] font-medium uppercase
+                           text-[11px] font-medium uppercase
                            tracking-wider text-blue-600 sm:mb-5"
                 >
                     <span
@@ -152,7 +166,6 @@
                 </div>
             </div>
 
-            {{-- Heading --}}
             <h2
                 data-reveal
                 style="--d: .1s"
@@ -178,7 +191,7 @@
         <div
             class="mx-auto mt-8 grid max-w-lg grid-cols-1 gap-7
                    sm:mt-10
-                   md:max-w-none md:grid-cols-3 md:gap-5
+                   md:max-w-none md:grid-cols-3 md:gap-6
                    lg:gap-8"
         >
 
@@ -200,7 +213,6 @@
                                sm:p-6"
                     >
 
-                        {{-- Spotlight --}}
                         <span
                             aria-hidden="true"
                             class="cara-spotlight pointer-events-none
@@ -213,7 +225,6 @@
 
                             <div class="flex items-center gap-3">
 
-                                {{-- Icon --}}
                                 <div
                                     class="flex h-10 w-10 shrink-0
                                            items-center justify-center
@@ -237,7 +248,7 @@
                                 <div class="min-w-0">
 
                                     <span
-                                        class="text-[10px] font-medium
+                                        class="text-[11px] font-medium
                                                uppercase tracking-wider
                                                text-blue-600"
                                     >
@@ -256,6 +267,24 @@
                                       sm:text-xs sm:leading-5">
                                 {{ $step['text'] }}
                             </p>
+
+                            {{-- Rincian singkat (opsional, misal isian login per role) --}}
+                            @if (! empty($step['points']))
+                                <ul class="mt-3 space-y-1.5 sm:mt-2.5">
+                                    @foreach ($step['points'] as $point)
+                                        <li class="flex items-start gap-2 text-[13px] leading-5
+                                                   text-gray-500 sm:text-xs">
+                                            <span
+                                                aria-hidden="true"
+                                                class="mt-1.5 h-1 w-1 shrink-0
+                                                       rounded-full bg-blue-500"
+                                            ></span>
+
+                                            <span>{{ $point }}</span>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
 
                         </div>
 
@@ -287,7 +316,6 @@
 
     </div>
 
-    {{-- Reveal + Card Spotlight --}}
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const section = document.getElementById('cara-kerja');

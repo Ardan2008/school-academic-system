@@ -118,15 +118,13 @@
                lg:py-12"
     >
 
-        {{-- Hero Content --}}
         <div class="mx-auto max-w-xl text-center lg:mx-0 lg:text-left">
 
-            {{-- Badge --}}
             <div class="hero-fade" style="--d: .05s">
                 <div
                     class="mb-5 inline-flex items-center gap-2 rounded-full
                            bg-blue-50 px-3 py-1.5
-                           text-[10px] font-medium uppercase
+                           text-[11px] font-medium uppercase
                            tracking-wider text-blue-600"
                 >
                     <span
@@ -138,7 +136,6 @@
                 </div>
             </div>
 
-            {{-- Heading --}}
             <h1
                 class="text-[2.5rem] font-semibold leading-[1.1]
                        tracking-tight text-gray-900
@@ -157,7 +154,6 @@
                 </span>
             </h1>
 
-            {{-- Description --}}
             <p
                 class="hero-fade mx-auto mt-5 max-w-lg text-[15px] leading-7
                        text-gray-600 sm:text-sm sm:leading-6 lg:mx-0"
@@ -168,7 +164,6 @@
                 platform yang praktis, aman, dan terorganisir.
             </p>
 
-            {{-- Button --}}
             <div
                 class="hero-fade mt-8 flex flex-col items-stretch gap-3
                        sm:flex-row sm:items-center sm:justify-center
@@ -176,31 +171,24 @@
                 style="--d: .6s"
             >
 
-                {{-- Mulai Sekarang --}}
                 <a
                     href="{{ route('login') }}"
+                    data-loading-link
+                    data-loading-text="Menuju Halaman Login..."
                     class="group relative inline-flex items-center justify-center
-                           gap-2.5 overflow-hidden rounded-lg bg-blue-600
+                           gap-2.5 overflow-hidden rounded-lg border
+                           border-transparent bg-blue-600
                            px-5 py-3.5 text-sm font-medium text-white
                            transition duration-300
-                           hover:-translate-y-0.5 hover:bg-blue-700
+                           hover:-translate-y-0.5 hover:border-blue-300
+                           hover:bg-white hover:text-blue-600
                            hover:shadow-lg hover:shadow-blue-600/25
-                           focus-visible:outline focus-visible:outline-2
+                           focus-visible:outline-2
                            focus-visible:outline-offset-2
                            focus-visible:outline-blue-500
                            active:translate-y-0 active:scale-[0.98]
                            sm:py-3 sm:text-xs"
                 >
-                    {{-- Shine --}}
-                    <span
-                        aria-hidden="true"
-                        class="pointer-events-none absolute inset-0
-                               -translate-x-full bg-linear-to-r
-                               from-transparent via-white/25 to-transparent
-                               transition-transform duration-700 ease-out
-                               group-hover:translate-x-full"
-                    ></span>
-
                     <span class="relative">
                         Mulai Sekarang
                     </span>
@@ -212,7 +200,6 @@
                     />
                 </a>
 
-                {{-- Pelajari Fitur --}}
                 <a
                     href="{{ route('beranda') }}#fitur"
                     class="group inline-flex items-center justify-center gap-2
@@ -220,8 +207,10 @@
                            bg-blue-50 px-5 py-3.5
                            text-sm font-medium text-blue-600
                            transition duration-300
-                           hover:-translate-y-0.5 hover:bg-blue-100
-                           focus-visible:outline focus-visible:outline-2
+                           hover:-translate-y-0.5 hover:border-blue-600
+                           hover:bg-blue-600 hover:text-white
+                           hover:shadow-lg hover:shadow-blue-600/25
+                           focus-visible:outline-2
                            focus-visible:outline-offset-2
                            focus-visible:outline-blue-500
                            active:translate-y-0 active:scale-[0.98]
@@ -236,7 +225,6 @@
 
         </div>
 
-        {{-- Dashboard Preview --}}
         <div class="relative flex items-center justify-center lg:justify-end">
 
             <div
@@ -244,7 +232,6 @@
                 class="relative aspect-[155/140] w-full max-w-md
                        sm:max-w-xl lg:max-w-155"
             >
-                {{-- Dashboard Guru --}}
                 <div
                     class="absolute right-[4%] top-[1.5%] z-10
                            w-[64%] hover:z-40"
@@ -270,7 +257,6 @@
                     </div>
                 </div>
 
-                {{-- Dashboard Siswa --}}
                 <div
                     class="absolute right-0 top-[39%] z-20
                            w-[64%] hover:z-40"
@@ -296,7 +282,6 @@
                     </div>
                 </div>
 
-                {{-- Dashboard Admin --}}
                 <div
                     class="absolute left-1/2 top-[11.5%] z-30
                            w-[72%]

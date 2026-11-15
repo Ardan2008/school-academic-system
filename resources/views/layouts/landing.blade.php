@@ -6,24 +6,24 @@
 
     <title>@yield('title', 'Sistem Akademik Sekolah')</title>
 
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
 <body>
 
-    {{-- Navbar --}}
     @include('components.layout.navbar')
 
-    {{-- Isi Landing Page --}}
     <main>
         @yield('content')
     </main>
 
-    {{-- Footer --}}
     @include('components.layout.footer')
 
-    {{-- Back to Top --}}
     @include('components.ui.back-to-top')
+
+    @include('components.ui.loading-screen')
 
 </body>
 </html>

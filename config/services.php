@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tim IT Sekolah
+    |--------------------------------------------------------------------------
+    |
+    | Tujuan notifikasi untuk permintaan bantuan yang dikirim lewat pop-up
+    | "Hubungi Tim IT Sekolah" di landing page. Kalau email kosong, notifikasi
+    | tidak dikirim; permintaan tetap tersimpan di tabel it_help_requests.
+    |
+    */
+
+    'it_support' => [
+        'email' => env('IT_SUPPORT_EMAIL'),
+        'name' => env('IT_SUPPORT_NAME', 'Tim IT Sekolah'),
+    ],
+
 ];

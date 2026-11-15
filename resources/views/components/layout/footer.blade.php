@@ -188,7 +188,6 @@
         ></span>
     </div>
 
-    {{-- Glow latar --}}
     <span
         aria-hidden="true"
         class="footer-glow pointer-events-none absolute left-1/2
@@ -202,10 +201,7 @@
                sm:px-6 sm:pt-14 lg:pt-16"
     >
 
-        {{-- Footer Content
-             Mobile : brand penuh, Quick Links & Fitur berdampingan, Kontak penuh
-             Tablet : sama, dengan kontak tersusun 2-3 kolom
-             Desktop: 4 kolom --}}
+        {{-- Footer Content: mobile 2 kolom (kontak penuh), tablet kontak 2-3 kolom, desktop 4 kolom --}}
         <div
             class="grid grid-cols-2 gap-x-6 gap-y-10
                    sm:gap-x-10
@@ -235,19 +231,20 @@
                             aria-label="{{ $social['label'] }}"
                             class="footer-social flex h-10 w-10 items-center
                                    justify-center rounded-full
-                                   bg-blue-600 text-white
+                                   border border-transparent bg-blue-600 text-white
                                    transition duration-300
-                                   hover:-translate-y-1 hover:bg-blue-500
+                                   hover:-translate-y-1 hover:border-blue-300
+                                   hover:bg-white hover:text-blue-600
                                    hover:shadow-lg hover:shadow-blue-500/40
-                                   focus-visible:outline focus-visible:outline-2
+                                   focus-visible:outline-2
                                    focus-visible:outline-offset-2
                                    focus-visible:outline-blue-300
-                                   active:translate-y-0 active:scale-95
-                                   sm:h-8 sm:w-8"
+                                    active:translate-y-0 active:scale-95
+                                    lg:h-8 lg:w-8"
                         >
                             <x-dynamic-component
                                 :component="'lucide-' . $social['icon']"
-                                class="h-[18px] w-[18px] sm:h-4 sm:w-4"
+                                class="h-[18px] w-[18px] lg:h-4 lg:w-4"
                             />
                         </a>
                     @endforeach
@@ -255,7 +252,6 @@
                 </div>
             </div>
 
-            {{-- Quick Links --}}
             <div data-reveal style="--d: .12s">
 
                 <h3 class="text-xs font-medium tracking-widest text-gray-300">
@@ -268,7 +264,7 @@
                     @foreach ($quickLinks as $link)
                         <li>
                             <a href="{{ $link['href'] }}"
-                               class="footer-link py-1.5 sm:py-0">
+                               class="footer-link py-2.5 sm:py-0">
                                 {{ $link['label'] }}
                             </a>
                         </li>
@@ -277,7 +273,6 @@
                 </ul>
             </div>
 
-            {{-- Fitur Platform --}}
             <div data-reveal style="--d: .24s">
 
                 <h3 class="text-xs font-medium tracking-widest text-gray-300">
@@ -289,7 +284,7 @@
 
                     @foreach ($platformLinks as $label)
                         <li>
-                            <a href="#" class="footer-link py-1.5 sm:py-0">
+                            <a href="#" class="footer-link py-2.5 sm:py-0">
                                 {{ $label }}
                             </a>
                         </li>
@@ -298,7 +293,6 @@
                 </ul>
             </div>
 
-            {{-- Kontak --}}
             <div data-reveal style="--d: .36s" class="col-span-2 lg:col-span-1">
 
                 <h3 class="text-xs font-medium tracking-widest text-gray-300">
@@ -311,7 +305,6 @@
                            md:grid-cols-3 lg:grid-cols-1"
                 >
 
-                    {{-- Lokasi --}}
                     <div class="group flex items-start gap-3">
 
                         <x-lucide-map-pin
@@ -336,7 +329,6 @@
 
                     </div>
 
-                    {{-- Telepon --}}
                     <div class="group flex items-start gap-3">
 
                         <x-lucide-phone
@@ -362,7 +354,6 @@
 
                     </div>
 
-                    {{-- Email --}}
                     <div class="group flex items-start gap-3 sm:col-span-2 md:col-span-1">
 
                         <x-lucide-mail
@@ -401,7 +392,7 @@
                    border-t border-gray-800 pt-6 text-center
                    text-xs text-gray-400
                    sm:flex-row sm:justify-between sm:gap-4
-                   sm:text-left sm:text-[10px]"
+                   sm:text-left"
         >
 
             <p>
@@ -410,13 +401,13 @@
 
             <div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
 
-                <a href="#" class="footer-link py-1 sm:py-0">
+                <a href="#" class="footer-link py-2.5 sm:py-0">
                     Privacy Policy
                 </a>
 
                 <span aria-hidden="true" class="text-gray-600">|</span>
 
-                <a href="#" class="footer-link py-1 sm:py-0">
+                <a href="#" class="footer-link py-2.5 sm:py-0">
                     Terms of Service
                 </a>
 
