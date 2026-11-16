@@ -2,6 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\Jurusan;
+use App\Models\KelasRombel;
+use App\Models\MataPelajaran;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -34,10 +37,10 @@ class AccountImportTest extends TestCase
 
     public function test_import_requires_admin(): void
     {
-        $guru = User::factory()->create(['email' => 'guru@example.com', 'role' => 'guru']);
+        $guru = User::factory()->create(['email' => 'guru@example.com', 'role' => 'guru', 'nip' => 'G001']);
 
         $this->actingAs($guru)
-            ->post(route('dashboard.admin.manajemen-akun.import'), ['file' => UploadedFile::fake()->createWithContent('akun.csv', 'x')])
+            ->post(route('dashboard.admin.manajemen-akun.import'), ['file' => UploadedFile::fake()->createWithContent('data.csv', 'x')])
             ->assertForbidden();
     }
 
@@ -48,148 +51,238 @@ class AccountImportTest extends TestCase
 
     public function test_import_rejects_unsupported_format(): void
     {
-        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('akun.pdf', 'x')])
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('data.pdf', 'x')])
             ->assertStatus(422);
 
         $this->assertStringContainsString('Format file tidak didukung', $response->json('message'));
     }
 
-    public function test_import_csv_with_header_creates_accounts(): void
+    public function test_import_rejects_unrecognized_header(): void
     {
-        $csv = "Role;Nama;Email;Kelas\n"
-            ."Guru;Ahmad Fauzi;;10-1\n"
-            ."Guru;Ahmad Fauzi;;10-1\n"
-            ."Siswa;Budi Santoso;;10-2\n";
+        $csv = "Foo;Bar\n1;2\n";
 
-        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)]);
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('data.csv', $csv)])
+            ->assertStatus(422);
 
-        $this->assertSame(3, $response->json('data.created'));
-        $this->assertSame(0, $response->json('data.skipped'));
-        $this->assertSame(0, $response->json('data.errors'));
-
-        $this->assertDatabaseHas('users', ['email' => 'ahmad-fauzi@saskansa.sch.id']);
-        $this->assertDatabaseHas('users', ['email' => 'ahmad-fauzi2@saskansa.sch.id']);
-        $this->assertDatabaseHas('users', ['email' => 'budi-santoso@saskansa.sch.id']);
-
-        $ahmad = User::where('email', 'ahmad-fauzi@saskansa.sch.id')->first();
-
-        $this->assertSame('guru', $ahmad->role);
-        $this->assertSame('10-1', $ahmad->kelas);
-        $this->assertTrue($ahmad->must_change_password);
-        $this->assertNotSame('', Crypt::decryptString($ahmad->initial_password));
+        $this->assertStringContainsString('Header file tidak dikenali', $response->json('message'));
     }
 
-    public function test_import_csv_without_header_uses_positional_order(): void
+    public function test_import_guru_auto_detect_and_creates_account(): void
     {
-        $csv = "Siswa;Devi Rara;;12-3\n";
+        MataPelajaran::create(['kode' => 'MAT', 'nama' => 'Matematika']);
 
-        $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)])
-            ->assertOk()
-            ->assertJsonPath('data.created', 1);
+        $csv = "NIP;Nama;Email;Mata Pelajaran;Status\n"
+            ."198001;Ahmad Fauzi;ahmad@example.com;Matematika;Aktif\n"
+            ."198002;Budi Santoso;;;\n";
 
-        $this->assertDatabaseHas('users', ['email' => 'devi-rara@saskansa.sch.id']);
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('guru.csv', $csv)]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.type', 'guru')
+            ->assertJsonPath('data.type_label', 'Guru')
+            ->assertJsonPath('data.created', 2)
+            ->assertJsonPath('data.skipped', 0)
+            ->assertJsonPath('data.errors', 0);
+
+        $guru = User::where('nip', '198001')->first();
+        $this->assertNotNull($guru);
+        $this->assertSame('guru', $guru->role);
+        $this->assertSame('Ahmad Fauzi', $guru->name);
+        $this->assertSame('ahmad@example.com', $guru->email);
+        $this->assertSame('Matematika', $guru->mata_pelajaran);
+        $this->assertTrue($guru->must_change_password);
+        $this->assertNotNull($guru->initial_password);
+        $this->assertNotSame('', Crypt::decryptString($guru->initial_password));
+
+        $guru2 = User::where('nip', '198002')->first();
+        $this->assertNotNull($guru2);
+        $this->assertStringEndsWith('@saskansa.sch.id', $guru2->email);
     }
 
-    public function test_import_menormalkan_dan_menolak_format_kelas_siswa(): void
+    public function test_import_guru_rejects_unknown_mapel_and_duplicate_nip(): void
     {
-        $csv = "Role;Nama;Email;Kelas\n"
-            ."Siswa;Siti Aminah;;12 - 2\n"
-            ."Siswa;Dewi Lestari;;11\n"
-            ."Siswa;Rudi Hartono;;12A\n";
+        MataPelajaran::create(['kode' => 'MAT', 'nama' => 'Matematika']);
+        User::factory()->create(['role' => 'guru', 'nip' => '1001', 'email' => 'existing@example.com']);
 
-        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)])
+        $csv = "NIP;Nama;Email;Mata Pelajaran\n"
+            ."1001;Duplikat;;Matematika\n"
+            ."1002;Mapel Asing;;Fisika Quantum\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('guru.csv', $csv)])
             ->assertOk();
 
-        $this->assertSame(2, $response->json('data.created'));
+        $this->assertSame(0, $response->json('data.created'));
+        $this->assertSame(1, $response->json('data.skipped'));
         $this->assertSame(1, $response->json('data.errors'));
-        $this->assertSame(
-            'Format kelas harus tingkat saja (contoh 12) atau tingkat-nomor rombel (contoh 12-1).',
-            $response->json('data.error_list.0.reason')
-        );
-
-        $this->assertDatabaseHas('users', ['email' => 'siti-aminah@saskansa.sch.id', 'kelas' => '12-2']);
-        $this->assertDatabaseHas('users', ['email' => 'dewi-lestari@saskansa.sch.id', 'kelas' => '11']);
-        $this->assertDatabaseMissing('users', ['email' => 'rudi-hartono@saskansa.sch.id']);
+        $this->assertStringContainsString('belum terdaftar', collect($response->json('data.error_list'))->pluck('reason')->implode('|'));
     }
 
-    public function test_import_skips_duplicate_email(): void
+    public function test_import_siswa_auto_detect_and_creates_account(): void
     {
-        User::factory()->create(['email' => 'taken-01@example.com']);
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
+        KelasRombel::create(['jurusan' => 'RPL', 'kelas' => '12-1']);
 
-        $csv = "Role;Nama;Email;Kelas\n"
-            ."Siswa;Udin Petot;taken-01@example.com;10-1\n"
-            ."Siswa;Udin Petok;taken-02@example.com;10-1\n";
+        $csv = "NIS;Nama;Email;Kelas;Jurusan;Status\n"
+            ."10001;Siti Aminah;;12 - 1;RPL;Aktif\n";
 
-        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)])
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('siswa.csv', $csv)])
             ->assertOk();
 
+        $response->assertJsonPath('data.type', 'siswa')
+            ->assertJsonPath('data.created', 1)
+            ->assertJsonPath('data.errors', 0);
+
+        $siswa = User::where('nis', '10001')->first();
+        $this->assertNotNull($siswa);
+        $this->assertSame('siswa', $siswa->role);
+        $this->assertSame('Siti Aminah', $siswa->name);
+        $this->assertSame('12-1', $siswa->kelas);
+        $this->assertSame('RPL', $siswa->jurusan);
+        $this->assertTrue($siswa->must_change_password);
+        $this->assertNotSame('', Crypt::decryptString($siswa->initial_password));
+    }
+
+    public function test_import_siswa_validates_relations_format_and_duplicates(): void
+    {
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
+        KelasRombel::create(['jurusan' => 'RPL', 'kelas' => '12-1']);
+
+        $csv = "NIS;Nama;Email;Kelas;Jurusan\n"
+            ."20001;Valid;;12-1;RPL\n"
+            ."20001;Duplikat File;;12-1;RPL\n"
+            ."20002;Kelas Invalid;;12A;RPL\n"
+            ."20003;Kelas Belum Ada;;11-1;RPL\n"
+            ."20004;Jurusan Invalid;;12-1;TKJ\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('siswa.csv', $csv)])
+            ->assertOk();
+
+        $this->assertSame('siswa', $response->json('data.type'));
         $this->assertSame(1, $response->json('data.created'));
         $this->assertSame(1, $response->json('data.skipped'));
-        $this->assertSame('Email sudah dipakai.', $response->json('data.skipped_list.0.reason'));
-        $this->assertDatabaseHas('users', ['email' => 'taken-02@example.com']);
+        $this->assertSame(3, $response->json('data.errors'));
+        $this->assertDatabaseHas('users', ['nis' => '20001']);
+        $this->assertDatabaseMissing('users', ['nis' => '20002']);
+        $this->assertDatabaseMissing('users', ['nis' => '20003']);
+        $this->assertDatabaseMissing('users', ['nis' => '20004']);
     }
 
-    public function test_import_collects_row_errors(): void
+    public function test_import_kelas_auto_detect_and_creates_record(): void
     {
-        $csv = "Role;Nama;Email\n"
-            ."Kepala Sekolah;Orang Gede;;\n"
-            ."Guru;;;\n"
-            ."Guru;Valid Name;;\n";
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
+        User::factory()->create(['role' => 'guru', 'name' => 'Pak Wali', 'nip' => '9001', 'email' => 'wali@example.com']);
 
-        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)])
-            ->assertOk()
-            ->assertJsonPath('data.created', 1)
-            ->assertJsonPath('data.errors', 2);
+        $csv = "Kelas;Jurusan;Wali Kelas\n"
+            ."10-1;RPL;Pak Wali\n"
+            ."10-2;RPL;\n";
 
-        $errors = collect($response->json('data.error_list'))->pluck('reason')->implode(' | ');
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('kelas.csv', $csv)])
+            ->assertOk();
 
-        $this->assertStringContainsString('tidak dikenali', $errors);
-        $this->assertStringContainsString('Nama wajib diisi', $errors);
-        $this->assertDatabaseHas('users', ['email' => 'valid-name@saskansa.sch.id']);
+        $response->assertJsonPath('data.type', 'kelas')->assertJsonPath('data.created', 2);
+        $this->assertDatabaseHas('kelas', ['kelas' => '10-1', 'jurusan' => 'RPL']);
+        $this->assertDatabaseHas('kelas', ['kelas' => '10-2', 'jurusan' => 'RPL', 'wali_kelas_id' => null]);
     }
 
-    public function test_import_xlsx_file_creates_accounts(): void
+    public function test_import_kelas_validates_jurusan_and_duplicate(): void
+    {
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
+        KelasRombel::create(['jurusan' => 'RPL', 'kelas' => '10-1']);
+
+        $csv = "Kelas;Jurusan\n10-1;RPL\n11-1;TKJ\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('kelas.csv', $csv)])
+            ->assertOk();
+
+        $this->assertSame(0, $response->json('data.created'));
+        $this->assertSame(1, $response->json('data.skipped'));
+        $this->assertSame(1, $response->json('data.errors'));
+    }
+
+    public function test_import_jurusan_auto_detect_and_creates_record(): void
+    {
+        $csv = "Nama Jurusan;Status\nRekayasa Perangkat Lunak;Aktif\nTeknik Komputer Jaringan;nonaktif\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('jurusan.csv', $csv)])
+            ->assertOk();
+
+        $response->assertJsonPath('data.type', 'jurusan')->assertJsonPath('data.created', 2);
+        $this->assertDatabaseHas('jurusan', ['nama' => 'Rekayasa Perangkat Lunak', 'status' => 'aktif']);
+        $this->assertDatabaseHas('jurusan', ['nama' => 'Teknik Komputer Jaringan', 'status' => 'nonaktif']);
+    }
+
+    public function test_import_jurusan_skips_duplicate(): void
+    {
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
+
+        $csv = "Nama Jurusan;Status\nRPL;Aktif\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('jurusan.csv', $csv)])
+            ->assertOk();
+
+        $this->assertSame(0, $response->json('data.created'));
+        $this->assertSame(1, $response->json('data.skipped'));
+    }
+
+    public function test_import_mata_pelajaran_auto_detect_and_creates_record(): void
+    {
+        $csv = "Kode;Nama Mata Pelajaran\nMAT;Matematika\nBIN;Bahasa Indonesia\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('mapel.csv', $csv)])
+            ->assertOk();
+
+        $response->assertJsonPath('data.type', 'mata_pelajaran')->assertJsonPath('data.created', 2);
+        $this->assertDatabaseHas('mata_pelajaran', ['kode' => 'MAT', 'nama' => 'Matematika']);
+        $this->assertDatabaseHas('mata_pelajaran', ['kode' => 'BIN', 'nama' => 'Bahasa Indonesia']);
+    }
+
+    public function test_import_mata_pelajaran_skips_duplicate_code_or_name(): void
+    {
+        MataPelajaran::create(['kode' => 'MAT', 'nama' => 'Matematika']);
+
+        $csv = "Kode;Nama Mata Pelajaran\nMAT;Matematika Lanjut\nFIS;Matematika\n";
+
+        $response = $this->import(['file' => UploadedFile::fake()->createWithContent('mapel.csv', $csv)])
+            ->assertOk();
+
+        $this->assertSame(0, $response->json('data.created'));
+        $this->assertSame(2, $response->json('data.skipped'));
+    }
+
+    public function test_import_xlsx_guru_creates_accounts(): void
     {
         $spreadsheet = new Spreadsheet;
         $spreadsheet->getActiveSheet()->fromArray([
-            ['Role', 'Nama', 'Email', 'Kelas'],
-            ['Guru', 'Xyz Abc', '', '12-1'],
-            ['Siswa', 'Qwe Rst', '', '12-1'],
+            ['NIP', 'Nama', 'Email'],
+            ['55501', 'Guru Xlsx', ''],
         ], null, 'A1');
 
         $path = sys_get_temp_dir().'/imp-'.uniqid().'.xlsx';
         (new Xlsx($spreadsheet))->save($path);
 
-        $uploaded = new UploadedFile($path, 'akun.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
+        $uploaded = new UploadedFile($path, 'guru.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', null, true);
 
-        $response = $this->import(['file' => $uploaded])
-            ->assertOk()
-            ->assertJsonPath('data.created', 2);
+        $response = $this->import(['file' => $uploaded])->assertOk();
 
-        $this->assertSame(2, $response->json('data.created'));
-        $this->assertDatabaseHas('users', ['email' => 'xyz-abc@saskansa.sch.id']);
-        $this->assertDatabaseHas('users', ['email' => 'qwe-rst@saskansa.sch.id', 'kelas' => '12-1']);
+        $this->assertSame('guru', $response->json('data.type'));
+        $this->assertSame(1, $response->json('data.created'));
+        $this->assertDatabaseHas('users', ['nip' => '55501', 'role' => 'guru']);
     }
 
-    public function test_import_membuat_password_awal_yang_unik_semua_akun(): void
+    public function test_import_guru_passwords_unique_in_batch_and_existing(): void
     {
-        // Akun lama dengan password awal tetap; hasil impor harus menghindarinya.
         User::factory()->create([
             'email' => 'lama@example.com',
             'role' => 'guru',
-            'password' => 'Lama123',
-            'initial_password' => Crypt::encryptString('Lama123'),
+            'nip' => 'OLD1',
+            'password' => 'Lama1234',
+            'initial_password' => Crypt::encryptString('Lama1234'),
             'must_change_password' => true,
         ]);
 
-        $csv = "Role;Nama;Email;Kelas\n"
-            ."Siswa;Siswa Satu;;10-1\n"
-            ."Siswa;Siswa Dua;;10-1\n"
-            ."Siswa;Siswa Tiga;;10-1\n"
-            ."Siswa;Siswa Empat;;10-1\n"
-            ."Siswa;Siswa Lima;;10-1\n";
+        $csv = "NIP;Nama\n9001;Guru A\n9002;Guru B\n9003;Guru C\n9004;Guru D\n";
 
-        $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)])->assertOk();
+        $this->import(['file' => UploadedFile::fake()->createWithContent('guru.csv', $csv)])->assertOk();
 
         $passwords = User::query()
             ->whereNotNull('initial_password')
@@ -197,25 +290,18 @@ class AccountImportTest extends TestCase
             ->map(fn (string $cipher) => Crypt::decryptString($cipher))
             ->all();
 
-        // Tidak ada dua akun (baru maupun lama) dengan password awal sama.
         $this->assertSame(count($passwords), count(array_unique($passwords)));
     }
 
-    public function test_kelas_dengan_pembungkus_kutip_ekspor_bisa_diimpor(): void
+    public function test_import_kelas_with_quoted_export_format(): void
     {
-        $admin = $this->admin();
+        Jurusan::create(['nama' => 'RPL', 'status' => 'aktif']);
 
-        // Export CSV menulis kelas sebagai ="10-1" supaya Excel tidak mengubahnya
-        // menjadi tanggal. Impor harus membuka pembungkus itu kembali.
-        $csv = "Role;Nama;Email;Kelas\r\n"
-            ."Siswa;Siswa Satu;;=\"10-1\"\r\n";
+        $csv = "Kelas;Jurusan\r\n=\"10-1\";RPL\r\n";
 
-        $this->import(['file' => UploadedFile::fake()->createWithContent('akun.csv', $csv)], $admin)
+        $this->import(['file' => UploadedFile::fake()->createWithContent('kelas.csv', $csv)])
             ->assertOk();
 
-        $this->assertDatabaseHas('users', [
-            'name' => 'Siswa Satu',
-            'kelas' => '10-1',
-        ]);
+        $this->assertDatabaseHas('kelas', ['kelas' => '10-1', 'jurusan' => 'RPL']);
     }
 }

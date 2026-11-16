@@ -293,35 +293,44 @@ class AkunController extends Controller
         $extension = strtolower($file->getClientOriginalExtension());
 
         if (! in_array($extension, ['csv', 'txt', 'xlsx', 'xls'], true)) {
+            $message = 'Format file tidak didukung. Gunakan .xlsx, .xls, .csv, atau .txt.';
+
             if ($request->expectsJson()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Format file tidak didukung. Gunakan .xlsx, .xls, .csv.',
-                ], 422);
+                return response()->json(['status' => 'error', 'message' => $message], 422);
             }
 
-            return back()->withErrors(['file' => 'Format file tidak didukung. Gunakan .xlsx, .xls, .csv.']);
+            return back()->withErrors(['file' => $message]);
         }
 
         try {
             $result = app(AccountImportService::class)->import($file->getRealPath(), $extension);
-        } catch (\Throwable $e) {
+        } catch (\RuntimeException $e) {
+            $message = $e->getMessage() !== '' ? $e->getMessage() : 'File tidak dapat diproses.';
+
             if ($request->expectsJson()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Gagal membaca file. Pastikan file tidak rusak.',
-                ], 422);
+                return response()->json(['status' => 'error', 'message' => $message], 422);
             }
 
-            return back()->withErrors(['file' => 'Gagal membaca file. Pastikan file tidak rusak.']);
+            return back()->withErrors(['file' => $message]);
+        } catch (\Throwable $e) {
+            $message = 'Gagal membaca file. Pastikan file tidak rusak dan sesuai format.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'message' => $message], 422);
+            }
+
+            return back()->withErrors(['file' => $message]);
         }
 
         session()->flash('import_result', $result);
 
+        $typeLabel = $result['type_label'] ?? 'Data';
+
         app(ActivityLogger::class)->record(
             ActivityLog::TIPE_MANAJEMEN_AKUN,
             sprintf(
-                'Mengimpor akun: %d dibuat, %d dilewati, %d gagal.',
+                'Mengimpor %s: %d berhasil, %d dilewati, %d gagal.',
+                $typeLabel,
                 count($result['created']),
                 count($result['skipped']),
                 count($result['errors'])
@@ -332,12 +341,15 @@ class AkunController extends Controller
         if ($request->expectsJson()) {
             return response()->json([
                 'status' => 'success',
-                'message' => 'Impor akun selesai.',
+                'message' => 'Impor '.$typeLabel.' selesai.',
                 'data' => [
+                    'type' => $result['type'] ?? null,
+                    'type_label' => $typeLabel,
                     'created' => count($result['created']),
                     'skipped' => count($result['skipped']),
                     'errors' => count($result['errors']),
-                    'truncated' => $result['truncated'],
+                    'truncated' => $result['truncated'] ?? false,
+                    'max_rows' => $result['max_rows'] ?? AccountImportService::MAX_ROWS,
                     'created_list' => $result['created'],
                     'skipped_list' => $result['skipped'],
                     'error_list' => $result['errors'],

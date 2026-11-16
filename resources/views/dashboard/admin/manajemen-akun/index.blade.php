@@ -711,7 +711,6 @@
         // ===== Import =====
         const importFile = document.getElementById('import-file');
         if (importFile) {
-            // Alasan gagal berasal dari file yang diunggah admin, jadi wajib di-escape sebelum masuk innerHTML SweetAlert.
             const escapeHtml = (teks) => String(teks).replace(/[&<>"']/g, (karakter) => ({
                 '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
             })[karakter]);
@@ -719,10 +718,35 @@
             importFile.addEventListener('change', async () => {
                 if (!importFile.files.length) return;
 
+                const file = importFile.files[0];
                 const form = new FormData();
-                form.append('file', importFile.files[0]);
+                form.append('file', file);
 
-                Swal.fire({ title: 'Mengimpor...', text: 'Mohon tunggu sebentar.', allowOutsideClick: false, showConfirmButton: false });
+                Swal.fire({
+                    title: 'Mengimpor data...',
+                    html: `
+                        <div style="text-align:left;font-size:.875rem;color:#475569">
+                            <div style="margin-bottom:.5rem">File: <b>${escapeHtml(file.name)}</b></div>
+                            <div style="height:8px;background:#e2e8f0;border-radius:9999px;overflow:hidden">
+                                <div id="swal-import-bar" style="height:100%;width:30%;background:#2563eb;border-radius:9999px;transition:width .25s ease"></div>
+                            </div>
+                            <div id="swal-import-text" style="margin-top:.5rem;font-size:.8rem;color:#64748b">Membaca dan memvalidasi file...</div>
+                        </div>
+                    `,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => Swal.showLoading(),
+                });
+
+                const bar = document.getElementById('swal-import-bar');
+                const txt = document.getElementById('swal-import-text');
+                let p = 30;
+                const timer = setInterval(() => {
+                    p = Math.min(p + 8, 90);
+                    if (bar) bar.style.width = p + '%';
+                    if (txt && p >= 60) txt.textContent = 'Menyimpan data ke database...';
+                }, 350);
 
                 try {
                     const res = await fetch('{{ route('dashboard.admin.manajemen-akun.import') }}', {
@@ -734,42 +758,85 @@
                         body: form,
                     });
 
-                    const data = await res.json();
+                    const data = await res.json().catch(() => ({}));
+                    clearInterval(timer);
+                    if (bar) bar.style.width = '100%';
 
                     if (res.ok && data.status === 'success') {
                         const r = data.data || {};
-
-                        const rincian = [];
-
-                        if (r.truncated) {
-                            rincian.push('<b style="color:#b45309">Baris melewati batas 5000 tidak ikut diimpor.</b>');
-                        }
-
+                        const tipe = escapeHtml(r.type_label || 'Data');
+                        const created = Number(r.created) || 0;
+                        const skipped = Number(r.skipped) || 0;
+                        const errorsCount = Number(r.errors) || 0;
                         const alasanGagal = Array.isArray(r.error_list) ? r.error_list : [];
+                        const dilewati = Array.isArray(r.skipped_list) ? r.skipped_list : [];
 
-                        if (alasanGagal.length) {
-                            rincian.push(
-                                '<div style="max-height:180px;overflow:auto;text-align:left;margin-top:.5rem">' +
-                                alasanGagal
-                                    .slice(0, 20)
-                                    .map((e) => `<div style="font-size:.8rem">Baris ${escapeHtml(String(e.row ?? '?'))}: ${escapeHtml(String(e.reason ?? 'Tidak diketahui.'))}</div>`)
-                                    .join('') +
-                                (alasanGagal.length > 20 ? `<div style="font-size:.8rem;opacity:.7">…dan ${alasanGagal.length - 20} baris lain.</div>` : '') +
-                                '</div>'
-                            );
+                        const listBlock = (title, items, color, bg, border) => {
+                            if (!items.length) return '';
+                            return `
+                                <div style="margin-top:.6rem">
+                                    <div style="font-size:.75rem;font-weight:600;color:${color};margin-bottom:.25rem">${title} (${items.length})</div>
+                                    <div style="max-height:180px;overflow:auto;text-align:left;padding:.5rem;background:${bg};border:1px solid ${border};border-radius:.5rem">
+                                        ${items.map((e) => `<div style="font-size:.75rem;color:#334155;margin-bottom:.2rem">Baris ${escapeHtml(String(e.row ?? '?'))}: ${escapeHtml(String(e.reason ?? 'Tidak diketahui.'))}</div>`).join('')}
+                                    </div>
+                                </div>`;
+                        };
+
+                        let rincian = '';
+                        if (r.truncated) {
+                            const max = Number(r.max_rows) || 5000;
+                            rincian += `<div style="margin-top:.5rem;color:#b45309;font-size:.8rem">Hanya ${max.toLocaleString('id-ID')} baris pertama yang diproses.</div>`;
                         }
+                        rincian += listBlock('Detail Gagal', alasanGagal, '#b91c1c', '#fff7ed', '#fed7aa');
+                        rincian += listBlock('Detail Dilewati', dilewati, '#b45309', '#fffbeb', '#fde68a');
+
+                        const icon = (errorsCount > 0 && created === 0) ? 'error'
+                            : (errorsCount > 0 || skipped > 0) ? 'warning'
+                            : 'success';
+                        const title = (errorsCount > 0 && created === 0) ? `Impor ${tipe} Gagal`
+                            : (errorsCount > 0 || skipped > 0) ? `Impor ${tipe} Selesai Sebagian`
+                            : `Impor ${tipe} Berhasil`;
+                        const hasChanges = created > 0 || dilewati.some((e) => e); // created already checked
 
                         Swal.fire({
-                            icon: 'success',
-                            title: 'Impor Selesai',
-                            html: `Dibuat: <b>${Number(r.created) || 0}</b><br>Diabaikan: <b>${Number(r.skipped) || 0}</b><br>Gagal: <b>${Number(r.errors) || 0}</b>`
-                                + (rincian.length ? `<br>${rincian.join('<br>')}` : ''),
-                        }).then(() => location.reload());
+                            icon,
+                            title,
+                            html: `
+                                <div style="text-align:left;font-size:.875rem;color:#334155">
+                                    <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.5rem;margin-bottom:.25rem">
+                                        <div style="padding:.4rem .5rem;border-radius:.5rem;background:#ecfdf5"><div style="font-size:.7rem;color:#047857">Berhasil</div><div style="font-weight:700;color:#059669">${created}</div></div>
+                                        <div style="padding:.4rem .5rem;border-radius:.5rem;background:#fffbeb"><div style="font-size:.7rem;color:#b45309">Dilewati</div><div style="font-weight:700;color:#d97706">${skipped}</div></div>
+                                        <div style="padding:.4rem .5rem;border-radius:.5rem;background:#fef2f2"><div style="font-size:.7rem;color:#b91c1c">Gagal</div><div style="font-weight:700;color:#dc2626">${errorsCount}</div></div>
+                                    </div>
+                                    ${rincian}
+                                </div>
+                            `,
+                            confirmButtonText: 'OK',
+                            showConfirmButton: true,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                        }).then(() => {
+                            if (created > 0) location.reload();
+                        });
                     } else {
-                        Swal.fire({ icon: 'error', title: 'Gagal', text: data.message || 'Terjadi kesalahan.' });
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Impor Gagal',
+                            html: `<div style="text-align:left;font-size:.875rem;color:#334155">${escapeHtml(data.message || 'Terjadi kesalahan saat memproses file.')}</div>`,
+                            confirmButtonText: 'OK',
+                            showConfirmButton: true,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                        });
                     }
                 } catch (err) {
-                    Swal.fire({ icon: 'error', title: 'Gagal', text: 'Terjadi kesalahan jaringan.' });
+                    clearInterval(timer);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal',
+                        text: 'Terjadi kesalahan jaringan. Periksa koneksi lalu coba lagi.',
+                        confirmButtonText: 'Tutup',
+                    });
                 } finally {
                     importFile.value = '';
                 }
