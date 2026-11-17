@@ -76,6 +76,108 @@
             .ekspor[data-state="muat"] .ekspor-kilau { animation: none; opacity: .5; }
             .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] { animation: none; }
         }
+
+        /* ===== Modal Template Format Data ===== */
+        .tpl-modal {
+            z-index: 70;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .25s ease;
+        }
+
+        .tpl-modal[data-open="true"] {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .tpl-backdrop {
+            opacity: 0;
+            transition: opacity .25s ease;
+            background: rgba(15, 61, 115, .6);
+        }
+
+        .tpl-modal[data-open="true"] .tpl-backdrop {
+            opacity: 1;
+        }
+
+        .tpl-panel {
+            opacity: 0;
+            transform: translateY(16px) scale(.98);
+            transition: opacity .28s cubic-bezier(.22, 1, .36, 1),
+                        transform .28s cubic-bezier(.22, 1, .36, 1);
+        }
+
+        .tpl-modal[data-open="true"] .tpl-panel {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
+        @media (max-width: 639.98px) {
+            .tpl-panel { transform: translateY(100%); }
+        }
+
+        .tpl-card {
+            transition: border-color .18s ease, background-color .18s ease,
+                        box-shadow .18s ease, transform .18s ease;
+        }
+
+        .tpl-card:hover {
+            border-color: #BFDBFE;
+            background-color: #F8FAFF;
+        }
+
+        .tpl-card:focus-visible {
+            outline: 2px solid #1E86FF;
+            outline-offset: 2px;
+        }
+
+        .tpl-card.is-selected {
+            border-color: #34D399;
+            background-color: #ECFDF5;
+            box-shadow: 0 10px 24px -18px rgba(5, 150, 105, .65);
+        }
+
+        .tpl-card.is-selected:hover {
+            border-color: #10B981;
+            background-color: #ECFDF5;
+        }
+
+        .tpl-card.is-selected .tpl-card-icon {
+            background-color: #D1FAE5;
+            color: #047857;
+        }
+
+        .tpl-card .tpl-card-indicator {
+            border: 2px solid #CBD5E1;
+            background-color: #FFFFFF;
+            color: transparent;
+            transition: border-color .18s ease, background-color .18s ease,
+                        color .18s ease, transform .18s ease;
+        }
+
+        .tpl-card.is-selected .tpl-card-indicator {
+            border-color: #10B981;
+            background-color: #10B981;
+            color: #FFFFFF;
+            transform: scale(1.05);
+        }
+
+        .tpl-download[disabled] {
+            opacity: .55;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .tpl-download[data-loading="true"] {
+            cursor: progress;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .tpl-modal, .tpl-backdrop, .tpl-panel, .tpl-card,
+            .tpl-card .tpl-card-indicator {
+                transition: none;
+            }
+        }
     </style>
 
     <div id="akun-page">
@@ -100,6 +202,13 @@
                 </svg>
                 <x-lucide-check data-ekspor-ikon="sukses" class="ekspor-ikon h-4 w-4" />
                 <span data-ekspor-label>Export Excel</span>
+            </button>
+
+            <button type="button" id="akun-template"
+               title="Unduh template Excel untuk keperluan impor data"
+               class="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-blue-300 bg-white px-4 text-xs font-medium text-primary-60 transition hover:bg-blue-50 active:scale-[.98] sm:h-9 sm:text-sm">
+                <x-lucide-file-spreadsheet class="h-4 w-4" />
+                Template Format Data
             </button>
 
             <a id="akun-slip-link"
@@ -190,6 +299,119 @@
 
             {{-- Footer + pagination --}}
             <x-ui.table-footer mini label="akun" />
+        </div>
+    </div>
+
+    {{-- ============ Modal Template Format Data ============ --}}
+    <div
+        id="akun-template-modal"
+        data-open="false"
+        aria-hidden="true"
+        inert
+        class="tpl-modal fixed inset-0 flex items-end justify-center overflow-y-auto overscroll-contain p-0 sm:items-center sm:p-4 lg:left-64"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="akun-template-title"
+    >
+        <div data-template-backdrop class="tpl-backdrop absolute inset-0"></div>
+
+        <div
+            data-template-panel
+            class="tpl-panel relative z-10 flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
+        >
+            <header class="flex shrink-0 items-start gap-3 border-b border-slate-100 px-5 pb-4 pt-5 sm:px-7 sm:pt-6">
+                <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary-60">
+                    <x-lucide-file-spreadsheet class="h-5 w-5" />
+                </div>
+                <div class="min-w-0 flex-1">
+                    <h3 id="akun-template-title" class="text-lg font-bold leading-tight text-primary-70 sm:text-xl">
+                        Unduh Template Format Data
+                    </h3>
+                    <p class="mt-1 text-xs leading-relaxed text-slate-500 sm:text-sm">
+                        Pilih template Excel yang dibutuhkan untuk pengisian data oleh Guru atau pihak terkait.
+                    </p>
+                </div>
+                <button type="button" data-template-close aria-label="Tutup"
+                    class="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-primary-60 transition hover:bg-blue-50 active:scale-90">
+                    <x-lucide-x class="h-5 w-5" />
+                </button>
+            </header>
+
+            <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-7">
+                <div class="flex items-start gap-2.5 rounded-xl border border-blue-100 bg-blue-50/70 px-3.5 py-3 text-xs leading-relaxed text-blue-800 sm:text-sm">
+                    <x-lucide-info class="mt-0.5 h-4 w-4 shrink-0 text-primary-60" />
+                    <p>
+                        Jika memilih lebih dari satu template, seluruh file Excel akan digabungkan
+                        dan diunduh sebagai satu file <span class="font-semibold">ZIP</span>.
+                    </p>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center justify-between gap-2">
+                    <p data-template-count class="text-xs font-medium text-slate-500 sm:text-sm">
+                        0 dari {{ count($templateOptions) }} template dipilih
+                    </p>
+                    <button type="button" data-template-select-all
+                        class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-60 transition hover:bg-blue-50 active:scale-[.98] sm:text-sm">
+                        <x-lucide-check-check class="h-4 w-4" />
+                        <span data-template-select-all-label>Pilih Semua Template</span>
+                    </button>
+                </div>
+
+                <div class="mt-3 space-y-2.5" data-template-list>
+                    @foreach ($templateOptions as $option)
+                        <button type="button"
+                            data-template-card="{{ $option['key'] }}"
+                            data-template-file="{{ $option['file'] }}"
+                            role="checkbox"
+                            aria-checked="false"
+                            class="tpl-card flex w-full items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-3.5 py-3 text-left sm:gap-4 sm:px-4">
+                            <span class="tpl-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary-60">
+                                @switch($option['key'])
+                                    @case('guru')
+                                        <x-lucide-user-round class="h-5 w-5" />
+                                        @break
+                                    @case('siswa')
+                                        <x-lucide-graduation-cap class="h-5 w-5" />
+                                        @break
+                                    @case('kelas')
+                                        <x-lucide-school class="h-5 w-5" />
+                                        @break
+                                    @case('jurusan')
+                                        <x-lucide-layers class="h-5 w-5" />
+                                        @break
+                                    @default
+                                        <x-lucide-book-open class="h-5 w-5" />
+                                @endswitch
+                            </span>
+                            <span class="min-w-0 flex-1">
+                                <span class="block text-sm font-semibold text-slate-800">{{ $option['label'] }}</span>
+                                <span class="mt-0.5 block text-xs leading-relaxed text-slate-500">{{ $option['description'] }}</span>
+                                <span class="mt-1 block text-[11px] font-medium text-slate-400">{{ $option['file'] }}</span>
+                            </span>
+                            <span class="tpl-card-indicator flex h-6 w-6 shrink-0 items-center justify-center rounded-full" aria-hidden="true">
+                                <x-lucide-check class="h-3.5 w-3.5" stroke-width="3" />
+                            </span>
+                        </button>
+                    @endforeach
+                </div>
+            </div>
+
+            <footer class="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+                <p class="hidden text-xs text-slate-400 sm:block">
+                    File template siap diimpor melalui tombol Import.
+                </p>
+                <div class="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:items-center">
+                    <button type="button" data-template-close
+                        class="inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50 active:scale-[.98]">
+                        Batal
+                    </button>
+                    <button type="button" data-template-download disabled
+                        class="tpl-download inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-primary-60 px-5 text-sm font-semibold text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70 active:scale-[.98]">
+                        <x-lucide-download class="h-4 w-4" />
+                        <span data-template-download-label>Unduh Template</span>
+                    </button>
+                </div>
+            </footer>
         </div>
     </div>
 @endsection
@@ -841,6 +1063,179 @@
                     importFile.value = '';
                 }
             });
+        }
+
+        // ===== Template Format Data =====
+        const templateModal = document.getElementById('akun-template-modal');
+        const templateOpen = document.getElementById('akun-template');
+
+        if (templateModal && templateOpen) {
+            const templateCards = Array.from(templateModal.querySelectorAll('[data-template-card]'));
+            const templateCount = templateModal.querySelector('[data-template-count]');
+            const templateSelectAll = templateModal.querySelector('[data-template-select-all]');
+            const templateSelectAllLabel = templateModal.querySelector('[data-template-select-all-label]');
+            const templateDownload = templateModal.querySelector('[data-template-download]');
+            const templateDownloadLabel = templateModal.querySelector('[data-template-download-label]');
+            const templateBackdrop = templateModal.querySelector('[data-template-backdrop]');
+            const templateUrl = @json(route('dashboard.admin.manajemen-akun.templates'));
+
+            let templateLastFocus = null;
+            let templateDownloading = false;
+
+            const selectedTemplates = () => templateCards.filter(
+                (card) => card.getAttribute('aria-checked') === 'true'
+            );
+
+            const syncTemplates = () => {
+                const total = templateCards.length;
+                const selected = selectedTemplates();
+                const allSelected = total > 0 && selected.length === total;
+
+                templateCards.forEach((card) => {
+                    card.classList.toggle('is-selected', card.getAttribute('aria-checked') === 'true');
+                });
+
+                templateCount.textContent = `${selected.length} dari ${total} template dipilih`;
+                templateSelectAllLabel.textContent = allSelected ? 'Batalkan Semua Pilihan' : 'Pilih Semua Template';
+                templateSelectAll.setAttribute('aria-pressed', allSelected ? 'true' : 'false');
+                templateDownload.disabled = selected.length === 0 || templateDownloading;
+                templateDownloadLabel.textContent = selected.length === 0
+                    ? 'Unduh Template'
+                    : `Unduh ${selected.length} Template`;
+            };
+
+            const setTemplateModal = (open) => {
+                templateModal.dataset.open = open ? 'true' : 'false';
+                templateModal.setAttribute('aria-hidden', open ? 'false' : 'true');
+
+                if (open) {
+                    templateModal.removeAttribute('inert');
+                    templateLastFocus = document.activeElement;
+                    document.body.style.overflow = 'hidden';
+                    window.setTimeout(() => templateCards[0]?.focus({ preventScroll: true }), 120);
+                } else {
+                    templateModal.setAttribute('inert', '');
+                    document.body.style.overflow = '';
+                    templateLastFocus?.focus?.({ preventScroll: true });
+                    templateLastFocus = null;
+                }
+            };
+
+            templateOpen.addEventListener('click', () => setTemplateModal(true));
+
+            templateModal.querySelectorAll('[data-template-close]').forEach((button) => {
+                button.addEventListener('click', () => setTemplateModal(false));
+            });
+
+            templateBackdrop.addEventListener('click', () => setTemplateModal(false));
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && templateModal.dataset.open === 'true' && !templateDownloading) {
+                    setTemplateModal(false);
+                }
+            });
+
+            templateCards.forEach((card) => {
+                card.addEventListener('click', () => {
+                    const checked = card.getAttribute('aria-checked') === 'true';
+                    card.setAttribute('aria-checked', checked ? 'false' : 'true');
+                    syncTemplates();
+                });
+            });
+
+            templateSelectAll.addEventListener('click', () => {
+                const shouldSelect = selectedTemplates().length !== templateCards.length;
+                templateCards.forEach((card) => {
+                    card.setAttribute('aria-checked', shouldSelect ? 'true' : 'false');
+                });
+                syncTemplates();
+            });
+
+            templateDownload.addEventListener('click', async () => {
+                const selected = selectedTemplates();
+                if (selected.length === 0 || templateDownloading) return;
+
+                const params = new URLSearchParams();
+                selected.forEach((card) => params.append('jenis[]', card.dataset.templateCard));
+
+                templateDownloading = true;
+                templateDownload.dataset.loading = 'true';
+                templateDownload.setAttribute('aria-busy', 'true');
+                templateDownload.disabled = true;
+                templateDownloadLabel.textContent = 'Menyiapkan...';
+
+                try {
+                    const response = await fetch(`${templateUrl}?${params.toString()}`, {
+                        headers: {
+                            Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/zip, */*',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        credentials: 'same-origin',
+                    });
+
+                    if (!response.ok) {
+                        let message = 'Template gagal dibuat. Silakan coba lagi.';
+                        const contentType = response.headers.get('Content-Type') || '';
+
+                        if (contentType.includes('application/json')) {
+                            const data = await response.json().catch(() => null);
+                            if (data?.message) message = data.message;
+                        } else if (response.status === 422) {
+                            message = 'Pilih minimal satu template.';
+                        }
+
+                        throw new Error(message);
+                    }
+
+                    const blob = await response.blob();
+                    if (blob.size === 0) {
+                        throw new Error('File template kosong. Silakan coba lagi.');
+                    }
+
+                    const disposition = response.headers.get('Content-Disposition') || '';
+                    const match = disposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i);
+                    const fallbackName = selected.length > 1
+                        ? 'Template_Format_Data_SASKANSA.zip'
+                        : (selected[0].dataset.templateFile || 'Template_Format_Data.xlsx');
+                    const filename = match
+                        ? decodeURIComponent(match[1].replace(/"/g, '').trim())
+                        : fallbackName;
+
+                    const link = document.createElement('a');
+                    const objectUrl = URL.createObjectURL(blob);
+                    link.href = objectUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Template Berhasil Diunduh!',
+                        text: selected.length > 1
+                            ? 'Beberapa template berhasil diunduh dalam satu file ZIP.'
+                            : 'Template format data berhasil diunduh dan siap digunakan.',
+                        showConfirmButton: false,
+                        timer: 1800,
+                        timerProgressBar: true,
+                    });
+                } catch (error) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Mengunduh',
+                        text: error instanceof Error ? error.message : 'Terjadi kesalahan. Silakan coba lagi.',
+                        confirmButtonText: 'Tutup',
+                    });
+                } finally {
+                    templateDownloading = false;
+                    templateDownload.dataset.loading = 'false';
+                    templateDownload.removeAttribute('aria-busy');
+                    syncTemplates();
+                }
+            });
+
+            syncTemplates();
         }
 
         // ===== Jalankan =====

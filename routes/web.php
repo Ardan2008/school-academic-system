@@ -153,7 +153,9 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
         Route::put('/dashboard/admin/manajemen-akun/{user}', [AkunController::class, 'update'])->name('dashboard.admin.manajemen-akun.update');
         Route::post('/dashboard/admin/manajemen-akun/{user}/reset-password', [AkunController::class, 'resetPassword'])->name('dashboard.admin.manajemen-akun.reset-password');
         Route::get('/dashboard/admin/manajemen-akun/export/csv', [AkunController::class, 'export'])->name('dashboard.admin.manajemen-akun.export-csv');
+        Route::get('/dashboard/admin/manajemen-akun/template', [AkunController::class, 'templates'])->name('dashboard.admin.manajemen-akun.templates');
         Route::get('/dashboard/admin/manajemen-akun/slips', [AkunController::class, 'slips'])->name('dashboard.admin.manajemen-akun.slips');
+        Route::get('/dashboard/admin/manajemen-akun/slips/export', [AkunController::class, 'exportSlips'])->name('dashboard.admin.manajemen-akun.slips.export');
         Route::post('/dashboard/admin/manajemen-akun/import', [AkunController::class, 'import'])->name('dashboard.admin.manajemen-akun.import');
 
         Route::get('/dashboard/admin/pengajuan-reset-password', [PengajuanResetPasswordController::class, 'index'])->name('dashboard.admin.pengajuan-reset-password.index');

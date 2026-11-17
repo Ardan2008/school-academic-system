@@ -252,11 +252,20 @@
             <div class="cetak-panel flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:shadow-md">
                 <div class="cetak-judul flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
                     <h3 class="text-sm font-bold text-slate-800 sm:text-base">Rata-Rata Nilai per Kelas</h3>
-                    <a href="{{ route('dashboard.admin.laporan-akademik.export-kelas', $filterAktif) }}"
-                       class="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
-                        <x-lucide-download class="h-3.5 w-3.5" />
-                        Export Excel
-                    </a>
+                    <button type="button" data-laporan-export data-state="idle"
+                       data-export-url="{{ route('dashboard.admin.laporan-akademik.export-kelas', $filterAktif) }}"
+                       aria-live="polite"
+                       title="Unduh rekap nilai per kelas yang sedang difilter"
+                       class="ekspor relative inline-flex h-10 shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-blue-300 bg-white px-4 text-xs font-medium text-primary-60 transition hover:bg-blue-50 sm:h-9 sm:text-sm">
+                        <span data-ekspor-kilau class="ekspor-kilau" aria-hidden="true"></span>
+                        <x-lucide-download data-ekspor-ikon="idle" class="ekspor-ikon h-4 w-4" />
+                        <svg data-ekspor-ikon="muat" class="ekspor-ikon h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        <x-lucide-check data-ekspor-ikon="sukses" class="ekspor-ikon h-4 w-4" />
+                        <span data-ekspor-label>Export Excel</span>
+                    </button>
                 </div>
 
                 <div class="mt-4 h-64 w-full">
@@ -297,11 +306,20 @@
                         Rata-rata dihitung dari seluruh nilai di kelas itu, bukan dari rata-rata antar kelas.
                     </p>
                 </div>
-                <a href="{{ route('dashboard.admin.laporan-akademik.export-kelas', $filterAktif) }}"
-                   class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
-                    <x-lucide-download class="h-3.5 w-3.5" />
-                    Export Excel
-                </a>
+                <button type="button" data-laporan-export data-state="idle"
+                   data-export-url="{{ route('dashboard.admin.laporan-akademik.export-kelas', $filterAktif) }}"
+                   aria-live="polite"
+                   title="Unduh rekap nilai per kelas yang sedang difilter"
+                   class="ekspor relative inline-flex h-10 shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-blue-300 bg-white px-4 text-xs font-medium text-primary-60 transition hover:bg-blue-50 sm:h-9 sm:text-sm">
+                    <span data-ekspor-kilau class="ekspor-kilau" aria-hidden="true"></span>
+                    <x-lucide-download data-ekspor-ikon="idle" class="ekspor-ikon h-4 w-4" />
+                    <svg data-ekspor-ikon="muat" class="ekspor-ikon h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    <x-lucide-check data-ekspor-ikon="sukses" class="ekspor-ikon h-4 w-4" />
+                    <span data-ekspor-label>Export Excel</span>
+                </button>
             </div>
 
             <div class="cetak-tabel flex-1 overflow-x-auto border-t border-slate-100">
@@ -369,11 +387,20 @@
                         Guru pengampu diambil dari akun guru yang mata Pelajarannya sama, bukan dari urutan nama.
                     </p>
                 </div>
-                <a href="{{ route('dashboard.admin.laporan-akademik.export-mata-pelajaran', $filterAktif) }}"
-                   class="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-600 transition hover:border-blue-300 hover:bg-blue-50">
-                    <x-lucide-download class="h-3.5 w-3.5" />
-                    Export Excel
-                </a>
+                <button type="button" data-laporan-export data-state="idle"
+                   data-export-url="{{ route('dashboard.admin.laporan-akademik.export-mata-pelajaran', $filterAktif) }}"
+                   aria-live="polite"
+                   title="Unduh rekap nilai per mata pelajaran yang sedang difilter"
+                   class="ekspor relative inline-flex h-10 shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-lg border border-blue-300 bg-white px-4 text-xs font-medium text-primary-60 transition hover:bg-blue-50 sm:h-9 sm:text-sm">
+                    <span data-ekspor-kilau class="ekspor-kilau" aria-hidden="true"></span>
+                    <x-lucide-download data-ekspor-ikon="idle" class="ekspor-ikon h-4 w-4" />
+                    <svg data-ekspor-ikon="muat" class="ekspor-ikon h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                    </svg>
+                    <x-lucide-check data-ekspor-ikon="sukses" class="ekspor-ikon h-4 w-4" />
+                    <span data-ekspor-label>Export Excel</span>
+                </button>
             </div>
 
             <div class="cetak-tabel flex-1 overflow-x-auto border-t border-slate-100">
@@ -502,6 +529,97 @@
         const nilaiPerkembangan = @json($perkembanganNilai);
         const jumlahPerkembangan = @json($perkembanganJumlah);
         const ringkasan = @json($ringkasan);
+
+        // ===== Export Excel =====
+        const namaBerkas = (disposisi) => {
+            const cocok = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(disposisi || '');
+
+            return cocok
+                ? decodeURIComponent(cocok[1].replace(/"/g, '').trim())
+                : 'laporan-akademik.xlsx';
+        };
+
+        const unduhBlob = (blob, nama) => {
+            const objectUrl = URL.createObjectURL(blob);
+            const tautan = document.createElement('a');
+            tautan.href = objectUrl;
+            tautan.download = nama;
+            document.body.appendChild(tautan);
+            tautan.click();
+            tautan.remove();
+            window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1500);
+        };
+
+        document.querySelectorAll('[data-laporan-export]').forEach((tombol) => {
+            const exportUrl = tombol.dataset.exportUrl;
+            const label = tombol.querySelector('[data-ekspor-label]');
+            const LABEL_AWAL = label ? label.textContent.trim() : 'Export Excel';
+            const KEMBALI_SUKSES_MS = 2400;
+
+            let exportState = 'idle';
+            let exportTimer = null;
+
+            const setExportState = (state, text) => {
+                clearTimeout(exportTimer);
+                exportState = state;
+                tombol.dataset.state = state;
+                tombol.disabled = state === 'muat';
+
+                if (text && label) label.textContent = text;
+            };
+
+            tombol.addEventListener('click', async () => {
+                if (exportState === 'muat') return;
+
+                setExportState('muat', 'Menyiapkan…');
+
+                try {
+                    const respons = await fetch(exportUrl, {
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: {
+                            Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        },
+                    });
+
+                    const tipe = respons.headers.get('Content-Type') || '';
+
+                    if (!respons.ok || !tipe.includes('spreadsheet')) {
+                        if (respons.status === 403) {
+                            throw new Error('Anda tidak punya akses untuk mengunduh data ini.');
+                        }
+
+                        if (respons.status === 419) {
+                            throw new Error('Sesi Anda sudah habis. Muat ulang halaman lalu coba lagi.');
+                        }
+
+                        throw new Error('File Excel gagal dibuat. Silakan coba lagi.');
+                    }
+
+                    const blob = await respons.blob();
+                    if (blob.size === 0) {
+                        throw new Error('File Excel kosong. Silakan coba lagi.');
+                    }
+
+                    unduhBlob(blob, namaBerkas(respons.headers.get('Content-Disposition')));
+
+                    const total = Number(respons.headers.get('X-Total-Baris') || 0);
+
+                    setExportState('sukses', total > 0 ? `${total} baris diunduh` : 'Tidak ada data');
+                    exportTimer = setTimeout(() => {
+                        setExportState('idle', LABEL_AWAL);
+                    }, KEMBALI_SUKSES_MS);
+                } catch (galat) {
+                    setExportState('idle', LABEL_AWAL);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal Mengunduh',
+                        text: galat instanceof Error ? galat.message : 'Tidak dapat terhubung ke server.',
+                        confirmButtonText: 'Tutup',
+                    });
+                }
+            });
+        });
 
         // Semua grafik dikumpulkan di satu daftar agar ukurannya bisa dihitung
         // ulang tepat sebelum dan sesudah dicetak.
@@ -675,6 +793,78 @@
 </script>
 
 <style>
+    /* ===== Tombol export: tiga keadaan (diam, mengunduh, berhasil) =====
+       Gaya semuanya dipandu atribut data-state, jadi JS cukup mengubah satu atribut. */
+
+    .ekspor-ikon { transition: opacity .18s ease, transform .18s ease; }
+
+    /* Ikon yang tidak dipakai pada keadaan sekarang disembunyikan. */
+    .ekspor[data-state="idle"] [data-ekspor-ikon]:not([data-ekspor-ikon="idle"]),
+    .ekspor[data-state="muat"] [data-ekspor-ikon]:not([data-ekspor-ikon="muat"]),
+    .ekspor[data-state="sukses"] [data-ekspor-ikon]:not([data-ekspor-ikon="sukses"]) {
+        display: none;
+    }
+
+    /* Keadaan mengunduh: tombol mati agar tidak bisa diklik dua kali. */
+    .ekspor[data-state="muat"] {
+        cursor: progress;
+        border-color: rgb(191 219 254);
+        background-color: rgb(239 246 255);
+        translate: none;
+        box-shadow: none;
+    }
+
+    .ekspor[data-state="muat"]:hover { transform: none; }
+    .ekspor[data-state="muat"] [data-ekspor-label] { opacity: .75; }
+
+    /* Keadaan berhasil: hijau sejenak sebagai tanda file sudah masuk. */
+    .ekspor[data-state="sukses"] {
+        cursor: default;
+        border-color: rgb(167 243 208);
+        background-color: rgb(236 253 245);
+        color: rgb(4 120 87);
+        translate: none;
+        box-shadow: 0 6px 14px -10px rgb(16 185 129);
+    }
+
+    .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] {
+        animation: ekspor-pop .45s cubic-bezier(.34, 1.56, .64, 1);
+    }
+
+    @keyframes ekspor-pop {
+        0%   { transform: scale(.3) rotate(-25deg); opacity: 0; }
+        60%  { transform: scale(1.18) rotate(6deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0); opacity: 1; }
+    }
+
+    /* Cahaya bergerak melintas tombol selama proses berjalan. */
+    .ekspor-kilau {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        background: linear-gradient(100deg,
+                transparent 20%,
+                rgb(255 255 255 / .85) 50%,
+                transparent 80%);
+        transform: translateX(-100%);
+    }
+
+    .ekspor[data-state="muat"] .ekspor-kilau {
+        opacity: 1;
+        animation: ekspor-kilau 1.1s ease-in-out infinite;
+    }
+
+    @keyframes ekspor-kilau {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .ekspor[data-state="muat"] .ekspor-kilau { animation: none; opacity: .5; }
+        .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] { animation: none; }
+    }
+
     @page {
         /* Margin kertas dipersempit supaya tepi tidak memakan tinggi halaman. */
         margin: 10mm;

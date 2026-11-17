@@ -511,4 +511,92 @@ class AkunManagerTest extends TestCase
             ->assertSee('siswa-done@example.com')
             ->assertSee('sudah diubah');
     }
+
+    public function test_akun_slips_page_has_print_and_export_buttons(): void
+    {
+        $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.manajemen-akun.slips'))
+            ->assertOk()
+            ->assertSee('Cetak Slip')
+            ->assertSee('Export Excel');
+    }
+
+    public function test_akun_slip_export_is_admin_only(): void
+    {
+        $guru = User::factory()->create(['email' => 'guru@example.com', 'role' => 'guru']);
+
+        $this->actingAs($guru)
+            ->get(route('dashboard.admin.manajemen-akun.slips.export'))
+            ->assertForbidden();
+    }
+
+    public function test_akun_slip_export_returns_excel_with_password_and_changed_status(): void
+    {
+        $admin = $this->admin();
+
+        $guru = $this->userWithInitialPassword('guru-a@example.com', 'guru', '11-1', 'GuruA1');
+        $guru->update(['nip' => 'G001']);
+
+        $siswa = $this->userWithInitialPassword('siswa-a@example.com', 'siswa', '12-1', 'SiswaA1');
+        $siswa->update(['nis' => '2024001', 'jurusan' => 'Rekayasa Perangkat Lunak']);
+
+        User::factory()->create([
+            'email' => 'siswa-done@example.com',
+            'role' => 'siswa',
+            'kelas' => '12-2',
+            'nis' => '2024002',
+            'initial_password' => Crypt::encryptString('LamaSiswa1'),
+            'must_change_password' => false,
+        ]);
+
+        $response = $this->actingAs($admin)
+            ->get(route('dashboard.admin.manajemen-akun.slips.export'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+
+        $this->assertStringContainsString(
+            'attachment; filename="Slip_Password_Akun.xlsx"',
+            (string) $response->headers->get('Content-Disposition')
+        );
+
+        $rows = $this->bacaBukuKerja($response);
+        $this->assertSame(
+            ['Role', 'Nama', 'Email', 'NIP/NIS', 'Kelas', 'Jurusan', 'Password'],
+            $rows[2]
+        );
+
+        $content = $this->gabungBukuKerja($rows);
+
+        $this->assertStringContainsString('guru-a@example.com', $content);
+        $this->assertStringContainsString('G001', $content);
+        $this->assertStringContainsString('GuruA1', $content);
+        $this->assertStringContainsString('siswa-a@example.com', $content);
+        $this->assertStringContainsString('2024001', $content);
+        $this->assertStringContainsString('SiswaA1', $content);
+        $this->assertStringContainsString('Rekayasa Perangkat Lunak', $content);
+        $this->assertStringContainsString('Password Sudah Diubah', $content);
+        $this->assertStringNotContainsString('LamaSiswa1', $content);
+        $this->assertStringNotContainsString($admin->email, $content);
+    }
+
+    public function test_akun_slip_export_follows_current_filters(): void
+    {
+        $admin = $this->admin();
+
+        $this->userWithInitialPassword('siswa-a@example.com', 'siswa', '12-1', 'SiswaA1')
+            ->update(['nis' => '2024001']);
+        $this->userWithInitialPassword('siswa-b@example.com', 'siswa', '12-2', 'SiswaB1')
+            ->update(['nis' => '2024002']);
+
+        $response = $this->actingAs($admin)
+            ->get(route('dashboard.admin.manajemen-akun.slips.export', ['kelas' => '12-1']))
+            ->assertOk();
+
+        $content = $this->gabungBukuKerja($this->bacaBukuKerja($response));
+
+        $this->assertStringContainsString('siswa-a@example.com', $content);
+        $this->assertStringContainsString('SiswaA1', $content);
+        $this->assertStringNotContainsString('siswa-b@example.com', $content);
+        $this->assertStringNotContainsString('SiswaB1', $content);
+    }
 }

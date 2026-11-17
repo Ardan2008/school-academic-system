@@ -8,6 +8,7 @@ use App\Models\KelasRombel;
 use App\Models\User;
 use App\Services\AccountImportService;
 use App\Services\ActivityLogger;
+use App\Services\TemplateFormatDataService;
 use App\Services\XlsxExportService;
 use App\Support\Credentials;
 use App\Support\Kelas;
@@ -69,6 +70,7 @@ class AkunController extends Controller
             'tingkatOptions' => $this->pilihanTingkat($kaskade, $filters['jurusan']),
             'kelasOptions' => $this->pilihanRombel($kaskade, $filters['jurusan'], $filters['tingkat']),
             'filters' => $filters,
+            'templateOptions' => TemplateFormatDataService::options(),
         ]);
     }
 
@@ -261,15 +263,40 @@ class AkunController extends Controller
         return $response;
     }
 
+    public function templates(Request $request)
+    {
+        $selected = $request->query('jenis', []);
+
+        if (! is_array($selected)) {
+            $selected = [$selected];
+        }
+
+        $selected = array_values(array_unique(array_filter(
+            array_map(fn ($value) => is_string($value) ? trim($value) : '', $selected),
+            fn (string $value) => $value !== ''
+        )));
+
+        if ($selected === [] || array_diff($selected, array_keys(TemplateFormatDataService::TYPES)) !== []) {
+            abort(422, 'Pilih minimal satu template yang valid.');
+        }
+
+        $unduhan = app(TemplateFormatDataService::class)->download($selected);
+
+        $response = response($unduhan['content'], 200, [
+            'Content-Type' => $unduhan['mime'],
+            'Content-Disposition' => 'attachment; filename="'.$unduhan['filename'].'"',
+        ]);
+
+        $response->headers->set('Cache-Control', 'no-store, no-cache');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('X-Template-Count', (string) count($selected));
+
+        return $response;
+    }
+
     public function slips(Request $request)
     {
-        $users = $this->filteredQuery($request)
-            ->whereIn('role', ['guru', 'siswa'])
-            ->orderBy('kelas')
-            ->orderBy('name')
-            ->get();
-
-        $items = $users->map(fn (User $user) => [
+        $items = $this->slipUsers($request)->map(fn (User $user) => [
             'user' => $user,
             'initial_password' => $this->initialPasswordOf($user),
         ]);
@@ -278,6 +305,47 @@ class AkunController extends Controller
             'items' => $items,
             'filters' => $request->only(['role', 'jurusan', 'tingkat', 'kelas', 'search']),
         ]);
+    }
+
+    public function exportSlips(Request $request)
+    {
+        $users = $this->slipUsers($request);
+
+        $headers = ['Role', 'Nama', 'Email', 'NIP/NIS', 'Kelas', 'Jurusan', 'Password'];
+
+        $baris = [];
+        foreach ($users as $user) {
+            $password = $this->initialPasswordOf($user);
+
+            $baris[] = [
+                self::ROLE_LABELS[$user->role] ?? ucfirst($user->role),
+                $user->name,
+                $user->email,
+                $user->role === 'guru' ? $user->nip : $user->nis,
+                $user->kelas ?: '',
+                $user->jurusan ?: '',
+                $password !== '' ? $password : 'Password Sudah Diubah',
+            ];
+        }
+
+        $response = app(XlsxExportService::class)->download(
+            'Slip_Password_Akun.xlsx',
+            'Slip Password Akun',
+            $headers,
+            $baris,
+            [
+                'subjudul' => 'Diunduh '.now()->format('d M Y H:i').' - '.$users->count().' akun',
+                // NIP/NIS, kelas, dan password dipaksa teks agar tidak berubah format.
+                'text_columns' => [4, 5, 7],
+                'sheet' => 'Slip Password',
+            ]
+        );
+
+        $response->headers->set('Cache-Control', 'no-store, no-cache');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('X-Total-Slip', (string) $users->count());
+
+        return $response;
     }
 
     public function import(Request $request)
@@ -358,6 +426,19 @@ class AkunController extends Controller
         }
 
         return redirect()->route('dashboard.admin.manajemen-akun.index');
+    }
+
+    /**
+     * Akun guru dan siswa yang tampil pada Slip Password, memakai filter
+     * halaman Manajemen Akun yang sama dengan daftar dan cetak slip.
+     */
+    protected function slipUsers(Request $request)
+    {
+        return $this->filteredQuery($request)
+            ->whereIn('role', ['guru', 'siswa'])
+            ->orderBy('kelas')
+            ->orderBy('name')
+            ->get();
     }
 
     protected function filteredQuery(Request $request)
