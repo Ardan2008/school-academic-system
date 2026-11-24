@@ -80,10 +80,9 @@ class GuruController extends Controller
         $guruData = [
             'guru' => $guru->values(),
             'mapel' => $this->mapelList(),
+            'mapel_options' => $this->penugasanMapelOptions(),
             'penugasan_kelas' => $this->penugasanKelasOptions(),
             'statuses' => self::STATUSES,
-            // Dipakai tombol "buat password acak" supaya formatnya sama persis
-            // dengan password yang dibuat sistem, contoh "n6STpguX".
             'password_charsets' => Credentials::passwordCharsets(),
             'password_length' => Credentials::PASSWORD_LENGTH,
         ];
@@ -100,21 +99,29 @@ class GuruController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $this->validated($request);
-
         $password = Credentials::ensureUniquePassword($data['password']);
 
-        $user = User::create([
-            'name' => $data['nama'],
-            'email' => $data['email'],
-            'password' => $password,
-            'role' => 'guru',
-            'nip' => $data['nis'],
-            'nis' => null,
-            'mata_pelajaran' => $data['mapel'],
-            'status' => $data['status'],
-            'initial_password' => Crypt::encryptString($password),
-            'must_change_password' => true,
-        ]);
+        $user = DB::transaction(function () use ($data, $password) {
+            $user = User::create([
+                'name' => $data['nama'],
+                'email' => $data['email'],
+                'password' => $password,
+                'role' => 'guru',
+                'nip' => $data['nis'],
+                'nis' => null,
+                'mata_pelajaran' => $data['mapel'],
+                'status' => $data['status'],
+                'initial_password' => Crypt::encryptString($password),
+                'must_change_password' => true,
+                'penugasan_diatur' => $data['penugasan_ada'],
+            ]);
+
+            $this->syncPenugasan($user, $data['mata_pelajaran_id'], $data['kelas_ids']);
+
+            return $user;
+        });
+
+        $user->refresh();
 
         app(ActivityLogger::class)->record(
             ActivityLog::TIPE_DATA_GURU,
@@ -137,33 +144,29 @@ class GuruController extends Controller
         $this->ensureGuru($user);
 
         $data = $this->validated($request, $user);
-
-        $values = [
-            'name' => $data['nama'],
-            'email' => $data['email'],
-            'nip' => $data['nis'],
-            'status' => $data['status'],
-        ];
-
-        // Form identitas guru tidak lagi mengelola mata pelajaran; pertahankan
-        // nilai yang ada saat field tidak dikirim/diisi dari form tersebut.
-        if ($data['mapel'] !== '') {
-            $values['mata_pelajaran'] = $data['mapel'];
-        }
-
-        // Password hanya diganti bila admin mengisinya ulang. Kalau nilai yang
-        // dikirim bentrok dengan password awal akun lain, sistem membuatkan
-        // pengganti yang unik.
         $password = null;
 
-        if ($data['password'] !== null && $data['password'] !== '') {
-            $password = Credentials::ensureUniquePassword($data['password']);
-            $values['password'] = $password;
-            $values['initial_password'] = Crypt::encryptString($password);
-            $values['must_change_password'] = true;
-        }
+        DB::transaction(function () use ($data, $user, &$password): void {
+            $values = [
+                'name' => $data['nama'],
+                'email' => $data['email'],
+                'nip' => $data['nis'],
+                'status' => $data['status'],
+                'mata_pelajaran' => $data['mapel'],
+                'penugasan_diatur' => $data['penugasan_ada'],
+            ];
 
-        $user->update($values);
+            if ($data['password'] !== null && $data['password'] !== '') {
+                $password = Credentials::ensureUniquePassword($data['password']);
+                $values['password'] = $password;
+                $values['initial_password'] = Crypt::encryptString($password);
+                $values['must_change_password'] = true;
+            }
+
+            $user->update($values);
+            $this->syncPenugasan($user, $data['mata_pelajaran_id'], $data['kelas_ids']);
+        });
+
         $user->refresh();
 
         app(ActivityLogger::class)->record(
@@ -209,11 +212,8 @@ class GuruController extends Controller
         return response()->json([
             'status' => 'success',
             'data' => [
-                'guru' => [
-                    'id' => $user->id,
-                    'nama' => $user->name,
-                ],
-                'mapel' => $this->penugasanMapelOptions($user),
+                'guru' => $this->row($user),
+                'mapel' => $this->penugasanMapelOptions(),
                 'kelas' => $this->penugasanKelasOptions(),
                 'penugasan' => $this->penugasan->ringkasan($user)->values(),
             ],
@@ -224,63 +224,46 @@ class GuruController extends Controller
     {
         $this->ensureGuru($user);
 
-        $mapelDiizinkan = $this->penugasan->mapelTersedia($user)
-            ->pluck('id')
-            ->map(fn ($id) => (int) $id)
-            ->values()
-            ->all();
-
         $validated = $request->validate([
-            'penugasan' => ['present', 'array'],
-            'penugasan.*.mata_pelajaran_id' => [
-                'required',
-                'integer',
-                'exists:mata_pelajaran,id',
-                Rule::in($mapelDiizinkan),
-            ],
-            'penugasan.*.kelas_ids' => ['required', 'array', 'min:1'],
+            'mata_pelajaran_id' => ['nullable', 'integer', 'exists:mata_pelajaran,id'],
+            'kelas_ids' => ['nullable', 'array'],
+            'kelas_ids.*' => ['integer', 'exists:kelas,id'],
+            'penugasan' => ['nullable', 'array'], // backward compat
+            'penugasan.*.mata_pelajaran_id' => ['nullable', 'integer', 'exists:mata_pelajaran,id'],
+            'penugasan.*.kelas_ids' => ['nullable', 'array'],
             'penugasan.*.kelas_ids.*' => ['integer', 'exists:kelas,id'],
         ], [
-            'penugasan.array' => 'Format penugasan tidak valid.',
-            'penugasan.*.mata_pelajaran_id.required' => 'Mata pelajaran wajib dipilih.',
-            'penugasan.*.mata_pelajaran_id.exists' => 'Mata pelajaran tidak ditemukan.',
-            'penugasan.*.mata_pelajaran_id.in' => 'Mata pelajaran tidak sesuai dengan data guru.',
-            'penugasan.*.kelas_ids.required' => 'Minimal satu kelas wajib dipilih.',
-            'penugasan.*.kelas_ids.min' => 'Minimal satu kelas wajib dipilih.',
-            'penugasan.*.kelas_ids.*.exists' => 'Kelas tidak ditemukan.',
+            'mata_pelajaran_id.exists' => 'Mata pelajaran tidak ditemukan.',
+            'kelas_ids.*.exists' => 'Kelas tidak ditemukan.',
         ]);
 
-        $grup = collect($validated['penugasan'])
-            ->map(fn (array $item) => [
-                'mata_pelajaran_id' => (int) $item['mata_pelajaran_id'],
-                'kelas_ids' => collect($item['kelas_ids'])
-                    ->map(fn ($id) => (int) $id)
-                    ->unique()
-                    ->values()
-                    ->all(),
-            ])
-            ->values();
+        $mapelId = isset($validated['mata_pelajaran_id']) ? (int) $validated['mata_pelajaran_id'] : null;
+        $kelasIds = collect($validated['kelas_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)->filter(fn (int $id) => $id > 0)->unique()->values()->all();
 
-        if ($grup->pluck('mata_pelajaran_id')->duplicates()->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'penugasan' => 'Mata pelajaran tidak boleh duplikat dalam satu guru.',
-            ]);
+        if (! $mapelId && empty($kelasIds) && ! empty($validated['penugasan'])) {
+            $first = collect($validated['penugasan'])->first(fn ($item) => is_array($item) && ! empty($item['mata_pelajaran_id']));
+            if (is_array($first)) {
+                $mapelId = (int) $first['mata_pelajaran_id'];
+                $kelasIds = collect($first['kelas_ids'] ?? [])->map(fn ($id) => (int) $id)->filter(fn (int $id) => $id > 0)->unique()->values()->all();
+            }
         }
 
-        DB::transaction(function () use ($grup, $user): void {
-            PenugasanMengajar::query()->where('guru_id', $user->id)->delete();
+        if ($mapelId && empty($kelasIds)) {
+            throw ValidationException::withMessages(['kelas_ids' => 'Minimal satu kelas wajib dipilih.']);
+        }
+        if (! $mapelId && ! empty($kelasIds)) {
+            throw ValidationException::withMessages(['mata_pelajaran_id' => 'Mata pelajaran wajib dipilih.']);
+        }
 
-            foreach ($grup as $item) {
-                foreach ($item['kelas_ids'] as $kelasId) {
-                    PenugasanMengajar::create([
-                        'guru_id' => $user->id,
-                        'mata_pelajaran_id' => $item['mata_pelajaran_id'],
-                        'kelas_id' => $kelasId,
-                    ]);
-                }
-            }
+        $mapelNama = $mapelId ? trim((string) MataPelajaran::query()->whereKey($mapelId)->value('nama')) : '';
 
-            $user->forceFill(['penugasan_diatur' => true])->save();
+        DB::transaction(function () use ($user, $mapelId, $kelasIds, $mapelNama): void {
+            $this->syncPenugasan($user, $mapelId, $kelasIds);
+            $user->forceFill([
+                'penugasan_diatur' => (bool) $mapelId,
+                'mata_pelajaran' => $mapelId ? $mapelNama : null,
+            ])->save();
         });
 
         $user->refresh();
@@ -299,6 +282,35 @@ class GuruController extends Controller
                 'penugasan' => $this->penugasan->ringkasan($user)->values(),
             ],
         ]);
+    }
+
+    /**
+     * @param  array<int, int>  $kelasIds
+     */
+    protected function syncPenugasan(User $user, ?int $mataPelajaranId, array $kelasIds): void
+    {
+        PenugasanMengajar::query()->where('guru_id', $user->id)->delete();
+
+        if (! $mataPelajaranId) {
+            return;
+        }
+
+        $rows = collect($kelasIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->map(fn (int $kelasId) => [
+                'guru_id' => $user->id,
+                'mata_pelajaran_id' => $mataPelajaranId,
+                'kelas_id' => $kelasId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])->all();
+
+        if ($rows !== []) {
+            PenugasanMengajar::query()->insert($rows);
+        }
     }
 
     /**
@@ -349,9 +361,11 @@ class GuruController extends Controller
         return $response;
     }
 
-    protected function penugasanMapelOptions(User $guru): array
+    protected function penugasanMapelOptions(): array
     {
-        return $this->penugasan->mapelTersedia($guru)
+        return MataPelajaran::query()
+            ->orderBy('nama')
+            ->get(['id', 'nama', 'kode'])
             ->map(fn (MataPelajaran $mapel) => [
                 'id' => (int) $mapel->id,
                 'nama' => (string) $mapel->nama,
@@ -425,6 +439,10 @@ class GuruController extends Controller
             ->values()
             ->all();
 
+        $ringkasan = $this->penugasan->ringkasan($user);
+        $mapelId = $ringkasan->count() === 1 ? (int) ($ringkasan->first()['mata_pelajaran_id'] ?? 0) : null;
+        $kelasIds = $ringkasan->count() === 1 ? array_values($ringkasan->first()['kelas_ids'] ?? []) : [];
+
         return [
             'id' => $user->id,
             'nip' => $user->nip,
@@ -432,6 +450,9 @@ class GuruController extends Controller
             'email' => $user->email,
             'mapel' => $label !== '' ? $label : null,
             'mapel_list' => $mapelList,
+            'mata_pelajaran_id' => $mapelId ?: null,
+            'kelas_ids' => $kelasIds,
+            'penugasan_ada' => $this->penugasan->sudahDiatur($user),
             'kelas_diampu' => $kelasDiampu,
             'kelas_detail' => $kelasDetail->all(),
             'status' => $user->status,
@@ -447,13 +468,11 @@ class GuruController extends Controller
     }
 
     /**
-     * @return array{nama: string, nis: string, email: string, mapel: string, status: string, password: string|null}
+     * @return array{nama: string, nis: string, email: string, mapel: string, mata_pelajaran_id: int|null, kelas_ids: array<int, int>, penugasan_ada: bool, status: string, password: string|null}
      */
     protected function validated(Request $request, ?User $user = null): array
     {
         $validated = $request->validate([
-            // Formulir memakai nama kolom "nis" (label: NIP) supaya sama dengan
-            // halaman Data Siswa; nilai ini disimpan ke kolom `nip` guru.
             'nis' => [
                 'required',
                 'string',
@@ -470,6 +489,9 @@ class GuruController extends Controller
                 Rule::unique('users', 'email')->ignore($user?->id),
             ],
             'mapel' => ['nullable', 'string', 'max:120'],
+            'mata_pelajaran_id' => ['nullable', 'integer', 'exists:mata_pelajaran,id'],
+            'kelas_ids' => ['nullable', 'array'],
+            'kelas_ids.*' => ['integer', 'exists:kelas,id'],
             'status' => ['required', Rule::in(self::STATUSES)],
             'password' => [
                 'nullable',
@@ -486,16 +508,73 @@ class GuruController extends Controller
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'email.unique' => 'Email sudah dipakai akun lain.',
+            'mata_pelajaran_id.exists' => 'Mata pelajaran yang dipilih tidak terdaftar.',
+            'kelas_ids.*.exists' => 'Kelas yang dipilih tidak terdaftar.',
             'status.in' => 'Status akun tidak valid.',
             'password.min' => 'Password minimal terdiri dari '.PasswordPolicy::MIN_LENGTH.' karakter.',
             'password.regex' => 'Password harus mengandung huruf besar dan angka.',
         ]);
 
+        $mapelId = isset($validated['mata_pelajaran_id']) ? (int) $validated['mata_pelajaran_id'] : null;
+        $kelasIds = collect($validated['kelas_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn (int $id) => $id > 0)
+            ->unique()
+            ->values()
+            ->all();
+
+        $legacyMapel = trim((string) ($validated['mapel'] ?? ''));
+        $legacyOnly = ! $mapelId && empty($kelasIds) && $legacyMapel !== '';
+
+        if ($legacyOnly) {
+            return [
+                'nama' => trim($validated['nama']),
+                'nis' => trim($validated['nis']),
+                'email' => mb_strtolower(trim($validated['email'])),
+                'mapel' => $legacyMapel,
+                'mata_pelajaran_id' => null,
+                'kelas_ids' => [],
+                'penugasan_ada' => false,
+                'status' => $validated['status'],
+                'password' => $validated['password'] ?? null,
+            ];
+        }
+
+        if (! $mapelId && $legacyMapel !== '') {
+            $legacy = MataPelajaran::query()->whereRaw('LOWER(nama) = LOWER(?)', [$legacyMapel])->first()
+                ?? MataPelajaran::query()->where('nama', 'like', '%'.$legacyMapel.'%')->first();
+            if ($legacy) $mapelId = (int) $legacy->id;
+        }
+
+        if ($mapelId && empty($kelasIds)) {
+            throw ValidationException::withMessages([
+                'kelas_ids' => 'Pilih minimal satu kelas untuk mata pelajaran yang dipilih.',
+            ]);
+        }
+        if (! $mapelId && ! empty($kelasIds)) {
+            throw ValidationException::withMessages([
+                'mata_pelajaran_id' => 'Mata pelajaran wajib dipilih sebelum memilih kelas.',
+            ]);
+        }
+
+        $mapelNama = '';
+        if ($mapelId) {
+            $mapelNama = trim((string) MataPelajaran::query()->whereKey($mapelId)->value('nama'));
+            if ($mapelNama === '') {
+                throw ValidationException::withMessages([
+                    'mata_pelajaran_id' => 'Mata pelajaran yang dipilih tidak valid.',
+                ]);
+            }
+        }
+
         return [
             'nama' => trim($validated['nama']),
             'nis' => trim($validated['nis']),
             'email' => mb_strtolower(trim($validated['email'])),
-            'mapel' => trim((string) ($validated['mapel'] ?? '')),
+            'mapel' => $mapelId ? $mapelNama : '',
+            'mata_pelajaran_id' => $mapelId ?: null,
+            'kelas_ids' => $kelasIds,
+            'penugasan_ada' => (bool) $mapelId,
             'status' => $validated['status'],
             'password' => $validated['password'] ?? null,
         ];

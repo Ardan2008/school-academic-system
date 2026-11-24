@@ -266,7 +266,8 @@ class SiswaController extends Controller
         return User::query()
             ->where('role', 'siswa')
             ->orderBy('kelas')
-            ->orderBy('name');
+            ->orderBy('name')
+            ->orderBy('id');
     }
 
     /**

@@ -86,6 +86,12 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
     Route::post('/dashboard/{role}/profil/password', [ProfileController::class, 'changePassword'])
         ->where('role', 'admin|guru|siswa')
         ->name('profile.password');
+    Route::post('/dashboard/{role}/profil/foto', [ProfileController::class, 'updatePhoto'])
+        ->where('role', 'admin|guru|siswa')
+        ->name('profile.photo.update');
+    Route::delete('/dashboard/{role}/profil/foto', [ProfileController::class, 'deletePhoto'])
+        ->where('role', 'admin|guru|siswa')
+        ->name('profile.photo.delete');
 
     Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
 
