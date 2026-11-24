@@ -42,3 +42,6 @@ _scan_final.php
 *_test_result.txt
 test_*.txt
 tests_*_latest.txt
+
+# Project documentation (local only)
+/LAPORAN_PROYEK_SASKANSA.md
