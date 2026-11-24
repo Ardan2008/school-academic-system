@@ -24,8 +24,10 @@ class PengumpulanTugas extends Model
         'tugas_id',
         'user_id',
         'dikumpulkan_at',
+        'jawaban',
         'status',
         'nilai',
+        'umpan_balik',
     ];
 
     protected function casts(): array
@@ -45,8 +47,16 @@ class PengumpulanTugas extends Model
         });
 
         static::updated(function (PengumpulanTugas $pengumpulan) {
-            if ($pengumpulan->wasChanged('dikumpulkan_at') || $pengumpulan->wasChanged('status')) {
+            if ($pengumpulan->wasChanged('dikumpulkan_at')) {
                 app(NotifikasiAkademikService::class)->pengumpulanTugas($pengumpulan, false);
+            }
+
+            $penilaianBerubah = $pengumpulan->wasChanged('status')
+                || $pengumpulan->wasChanged('nilai')
+                || $pengumpulan->wasChanged('umpan_balik');
+
+            if ($penilaianBerubah && $pengumpulan->status === self::STATUS_DINILAI) {
+                app(NotifikasiAkademikService::class)->penilaianTugas($pengumpulan);
             }
         });
     }

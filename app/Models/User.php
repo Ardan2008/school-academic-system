@@ -60,6 +60,7 @@ class User extends Authenticatable implements JWTSubject
         'nis',
         'jurusan',
         'mata_pelajaran',
+        'penugasan_diatur',
         'is_active',
         'status',
     ];
@@ -163,6 +164,7 @@ class User extends Authenticatable implements JWTSubject
         return [
             'password' => 'hashed',
             'must_change_password' => 'boolean',
+            'penugasan_diatur' => 'boolean',
             'is_active' => 'boolean',
         ];
     }

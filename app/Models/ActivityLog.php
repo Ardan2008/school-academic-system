@@ -31,6 +31,8 @@ class ActivityLog extends Model
 
     public const TIPE_INPUT_NILAI = 'input_nilai';
 
+    public const TIPE_JADWAL_PENYESUAIAN = 'jadwal_penyesuaian';
+
     public const LABELS = [
         self::TIPE_AUTH => 'Autentikasi',
         self::TIPE_PASSWORD => 'Password',
@@ -44,6 +46,7 @@ class ActivityLog extends Model
         self::TIPE_KENDALA_AKUN => 'Kendala Akun',
         self::TIPE_BACKUP_DATABASE => 'Backup Database',
         self::TIPE_INPUT_NILAI => 'Input Nilai',
+        self::TIPE_JADWAL_PENYESUAIAN => 'Jadwal Mengajar',
     ];
 
     public const UPDATED_AT = null;

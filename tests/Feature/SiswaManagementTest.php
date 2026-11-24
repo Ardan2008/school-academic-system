@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Jurusan;
 use App\Models\User;
 use App\Support\Kelas;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -27,17 +28,27 @@ class SiswaManagementTest extends TestCase
         ]);
     }
 
+    protected function jurusanId(string $nama = 'Rekayasa Perangkat Lunak'): int
+    {
+        return (int) Jurusan::firstOrCreate(['nama' => $nama])->id;
+    }
+
     /**
-     * @return array<string, string>
+     * @param  array<string, mixed>  $override
+     * @return array<string, mixed>
      */
     protected function payload(array $override = []): array
     {
+        if (isset($override['jurusan']) && ! is_numeric($override['jurusan'])) {
+            $override['jurusan'] = $this->jurusanId((string) $override['jurusan']);
+        }
+
         return array_merge([
             'nis' => '2025009999',
             'nama' => 'Alya Rahma',
             'email' => 'alya@saskansa.sch.id',
             'kelas' => '12-1',
-            'jurusan' => 'Rekayasa Perangkat Lunak',
+            'jurusan' => $this->jurusanId(),
             'status' => 'Aktif',
             'password' => '',
         ], $override);
@@ -350,6 +361,48 @@ class SiswaManagementTest extends TestCase
             ->assertSee('data-filter-summary', false);
     }
 
+    public function test_form_siswa_mengambil_pilihan_jurusan_dari_database(): void
+    {
+        $rpl = Jurusan::create(['nama' => 'Rekayasa Perangkat Lunak']);
+        $tkj = Jurusan::create(['nama' => 'Teknik Komputer Jaringan']);
+
+        $this->assertSame([
+            ['id' => $rpl->id, 'nama' => 'Rekayasa Perangkat Lunak'],
+            ['id' => $tkj->id, 'nama' => 'Teknik Komputer Jaringan'],
+        ], $this->siswaData()['jurusan_opsi']);
+
+        $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.data-siswa.index'))
+            ->assertOk()
+            ->assertSee('id="sm-jurusan"', false)
+            ->assertSee('value="'.$rpl->id.'">Rekayasa Perangkat Lunak</option>', false)
+            ->assertSee('Pilih jurusan yang sudah terdaftar.', false);
+    }
+
+    public function test_form_siswa_menampilkan_pesan_ketika_belum_ada_jurusan(): void
+    {
+        $this->assertSame([], $this->siswaData()['jurusan_opsi']);
+
+        $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.data-siswa.index'))
+            ->assertOk()
+            ->assertSee('id="sm-jurusan" name="jurusan" required disabled', false)
+            ->assertSee('Data jurusan belum tersedia', false)
+            ->assertSee('Belum ada jurusan terdaftar.', false);
+    }
+
+    public function test_penyimpanan_siswa_menolak_jurusan_yang_tidak_terdaftar(): void
+    {
+        Jurusan::create(['nama' => 'Rekayasa Perangkat Lunak']);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('dashboard.admin.data-siswa.store'), $this->payload(['jurusan' => 999999]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('jurusan');
+
+        $this->assertDatabaseMissing('users', ['email' => 'alya@saskansa.sch.id']);
+    }
+
     public function test_status_lulus_menonaktifkan_akun(): void
     {
         $siswa = User::factory()->siswa()->create(['status' => User::STATUS_LULUS]);
@@ -404,6 +457,7 @@ class SiswaManagementTest extends TestCase
         $this->assertTrue(Hash::check($password, $siswa->password));
         $this->assertSame($password, Crypt::decryptString($siswa->initial_password));
         $this->assertNull($siswa->nip);
+        $this->assertSame('Rekayasa Perangkat Lunak', $siswa->jurusan);
     }
 
     public function test_admin_dapat_menambah_siswa_dengan_password_tertentu(): void

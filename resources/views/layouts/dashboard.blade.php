@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" style="--sidebar-w:16rem;">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,7 +18,7 @@
     <x-layout.sidebar />
 
     {{-- Konten --}}
-    <div class="min-h-screen lg:pl-64">
+    <div id="app-main" class="min-h-screen transition-[padding-left] duration-300 ease-in-out lg:pl-[var(--sidebar-w)]">
 
         {{-- Topbar (tanpa garis) --}}
         <header class="sticky top-0 z-30 flex h-14 items-center gap-2.5 bg-white/90 px-4 backdrop-blur-md sm:px-6 lg:px-8">
@@ -270,6 +270,42 @@
     </div>
 
     <style>
+        @media (min-width: 1024px) {
+            body [data-open]:has(
+                > [data-modal-backdrop],
+                > [data-confirm-backdrop],
+                > [data-profile-edit-backdrop],
+                > [data-template-backdrop],
+                > [data-kelas-detail-backdrop],
+                > [data-penugasan-backdrop],
+                > [data-penugasan-overview-backdrop],
+                > [data-jam-backdrop],
+                > [data-tugas-backdrop],
+                > [data-tugas-edit-backdrop],
+                > [data-materi-form-backdrop],
+                > [data-tm-backdrop]
+            ),
+            body .logout-modal,
+            body .pwd-confirm,
+            body .pwd-modal,
+            body .tpl-modal,
+            body .km,
+            body .gm,
+            body .sm,
+            body .kconfirm,
+            body .gconfirm,
+            body .sconfirm,
+            body .proses-overlay,
+            body [data-tm-modal],
+            body [data-tugas-modal],
+            body [data-materi-modal],
+            body .jg-overlay,
+            body #site-loading,
+            body .swal2-container {
+                left: var(--sidebar-w, 16rem);
+            }
+        }
+
         .logout-modal {
             opacity: 0;
             pointer-events: none;

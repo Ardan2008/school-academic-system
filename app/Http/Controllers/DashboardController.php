@@ -133,18 +133,18 @@ class DashboardController extends Controller
             'kelasDiampu' => $kelasDiampu,
             'mapelDiampu' => $this->statistik->mapelDiampu($guru),
 
-            'ringkasan' => $this->statistik->ringkasan($tahunAjaran, $semester, null, null, $mapelIds),
+            'ringkasan' => $this->statistik->ringkasan($tahunAjaran, $semester, null, null, $mapelIds, $guru),
 
-            'perkembangan' => $this->statistik->perkembanganPeriode(null, null, $mapelIds),
+            'perkembangan' => $this->statistik->perkembanganPeriode(null, null, $mapelIds, $guru),
 
-            'kelasTertinggi' => $this->statistik->bagiHalaman($this->statistik->kelasTertinggi($tahunAjaran, $semester, $mapelIds), 5, 'kelas_tertinggi_page'),
-            'perKelas' => $this->statistik->rekapPerKelasPaginated($tahunAjaran, $semester, null, null, $mapelIds, 5, 'kelas_page'),
+            'kelasTertinggi' => $this->statistik->bagiHalaman($this->statistik->kelasTertinggi($tahunAjaran, $semester, $mapelIds, null, $guru), 5, 'kelas_tertinggi_page'),
+            'perKelas' => $this->statistik->rekapPerKelasPaginated($tahunAjaran, $semester, null, null, $mapelIds, 5, 'kelas_page', $guru),
 
             // Siswa belum tuntas, diurutkan dari rata-rata terendah; berhalaman
             // (5 baris) agar footer & paginasi tetap muncul walau isinya kurang dari lima.
             'perluPerhatian' => $this->statistik->bagiHalaman(
                 $this->statistik
-                    ->rekapPerSiswaSemua($tahunAjaran, $semester, null, null, $mapelIds)
+                    ->rekapPerSiswaSemua($tahunAjaran, $semester, null, null, $mapelIds, '', $guru)
                     ->filter(fn (array $row) => $row['belum_tuntas'] > 0)
                     ->sortBy('rata_rata')
                     ->values(),

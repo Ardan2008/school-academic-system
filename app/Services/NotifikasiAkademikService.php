@@ -250,6 +250,36 @@ class NotifikasiAkademikService
     }
 
     /**
+     * Penilaian Tugas: guru menyimpan nilai dan umpan balik, siswa yang bersangkutan
+     * menerima notifikasi yang mengarah ke halaman Tugas & Materi.
+     */
+    public function penilaianTugas(PengumpulanTugas $pengumpulan): ?Notification
+    {
+        $tugas = $pengumpulan->tugas;
+        $siswa = $pengumpulan->user;
+
+        if ($tugas === null || $siswa === null) {
+            return null;
+        }
+
+        $pesan = 'Tugas "'.$tugas->judul.'" dinilai '
+            .($pengumpulan->nilai !== null ? $this->formatAngka((float) $pengumpulan->nilai) : '-');
+
+        if (filled($pengumpulan->umpan_balik)) {
+            $pesan .= ' · Umpan balik: '.$pengumpulan->umpan_balik;
+        }
+
+        return $this->kirim(
+            $siswa,
+            Notification::TIPE_NILAI,
+            'Nilai Tugas: '.$tugas->judul,
+            $pesan,
+            route('dashboard.siswa.tugas-materi.index', ['tab' => 'tugas']),
+            'penilaian-tugas:'.$pengumpulan->id.':'.$pengumpulan->updated_at?->getTimestamp(),
+        );
+    }
+
+    /**
      * Perubahan Jadwal: satu baris jadwal dibuat, diubah, atau dihapus.
      * Siswa penerima adalah siswa rombel baris jadwal (ditambah rombel lama
      * bila rombelnya dipindahkan), guru penerima adalah guru pengampunya.
@@ -485,7 +515,7 @@ class NotifikasiAkademikService
             return route('dashboard.guru.jadwal-mengajar.index');
         }
 
-        return route('dashboard.guru.mata-pelajaran.index');
+        return route('dashboard.guru.index');
     }
 
     /**
@@ -670,7 +700,7 @@ class NotifikasiAkademikService
                 ->values();
 
             if ($kelasDiampu->isEmpty()) {
-                $kelasDiampu = KelasRombel::pluck('nama')->filter()->unique()->values();
+                $kelasDiampu = KelasRombel::pluck('kelas')->filter()->unique()->values();
             }
 
             if ($kelasDiampu->isNotEmpty()) {

@@ -176,4 +176,84 @@ class SiswaRaporTest extends TestCase
         $res->assertSee('1234567890');
         $res->assertSee('Identitas Siswa');
     }
+
+    public function test_export_pdf_rapor_mengunduh_file_dengan_nama_dan_data_yang_sesuai(): void
+    {
+        $mtk = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $fis = MataPelajaran::factory()->create(['kode' => 'FIS', 'nama' => 'Fisika']);
+
+        $siswa = User::factory()->siswa('12-1')->create([
+            'name' => 'Bayu Setiawan',
+            'jurusan' => 'Teknik Komputer dan Jaringan',
+        ]);
+
+        $this->buatNilai($siswa, $mtk, '2026/2027', 'Ganjil', 88);
+        $this->buatNilai($siswa, $fis, '2026/2027', 'Ganjil', 70);
+
+        $res = $this->actingAs($siswa)->get(route('dashboard.siswa.rapor.export', [
+            'tahun_ajaran' => '2026/2027',
+            'semester' => 'Ganjil',
+        ]));
+
+        $res->assertOk();
+        $res->assertHeader('content-type', 'application/pdf');
+        $res->assertDownload('Rapor_Bayu-Setiawan_12-1-Teknik-Komputer-dan-Jaringan_2026-2027_Ganjil.pdf');
+
+        try {
+            $content = $res->streamedContent();
+        } catch (\Throwable) {
+            $content = $res->getContent();
+        }
+        $this->assertStringStartsWith('%PDF', $content);
+    }
+
+    public function test_export_pdf_rapor_mengikuti_periode_yang_dipilih(): void
+    {
+        $mtk = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $kim = MataPelajaran::factory()->create(['kode' => 'KIM', 'nama' => 'Kimia']);
+
+        $siswa = User::factory()->siswa('12-1')->create(['name' => 'Siswa Uji', 'jurusan' => null]);
+        $periode = Periode::periodeSekarang();
+
+        $this->buatNilai($siswa, $mtk, $periode['tahun_ajaran'], $periode['semester'], 88);
+        $this->buatNilai($siswa, $kim, '2020/2021', 'Genap', 95);
+
+        $res = $this->actingAs($siswa)->get(route('dashboard.siswa.rapor.export', [
+            'tahun_ajaran' => '2020/2021',
+            'semester' => 'Genap',
+        ]));
+
+        $res->assertOk();
+        $res->assertDownload('Rapor_Siswa-Uji_12-1_2020-2021_Genap.pdf');
+    }
+
+    public function test_export_pdf_menolak_periode_tanpa_data_rapor(): void
+    {
+        $siswa = User::factory()->siswa('12-1')->create(['name' => 'Siswa Kosong']);
+
+        $res = $this->actingAs($siswa)->getJson(route('dashboard.siswa.rapor.export', [
+            'tahun_ajaran' => '2019/2020',
+            'semester' => 'Ganjil',
+        ]));
+
+        $res->assertStatus(422);
+        $res->assertJsonPath('status', 'error');
+        $res->assertJsonPath('message', 'Rapor belum tersedia untuk Ganjil 2019/2020.');
+    }
+
+    public function test_siswa_tidak_dapat_mengekspor_rapor_siswa_lain(): void
+    {
+        $mtk = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika Khusus']);
+        $siswa = User::factory()->siswa('12-1')->create(['name' => 'Siswa Login']);
+        $siswaLain = User::factory()->siswa('12-1')->create(['name' => 'Siswa Lain']);
+        $periode = Periode::periodeSekarang();
+
+        $this->buatNilai($siswaLain, $mtk, $periode['tahun_ajaran'], $periode['semester'], 95);
+
+        $res = $this->actingAs($siswa)->getJson(route('dashboard.siswa.rapor.export', $periode));
+
+        $res->assertStatus(422);
+        $res->assertDontSee('Siswa Lain', false);
+        $this->assertStringNotContainsString('Matematika Khusus', json_encode($res->json()));
+    }
 }

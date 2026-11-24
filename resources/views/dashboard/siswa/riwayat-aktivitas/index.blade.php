@@ -4,6 +4,8 @@
 @section('subtitle', 'Dashboard Siswa')
 
 @section('content')
+    <x-dashboard.animations />
+
     @php
         $badgeKategori = [
             'tugas' => 'bg-blue-50 text-blue-700 ring-blue-200',
@@ -29,7 +31,7 @@
         ]));
     @endphp
 
-    <div id="riwayat-aktivitas-page">
+    <div id="riwayat-aktivitas-page" data-dashboard>
 
         {{-- Identitas rombel siswa --}}
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -48,7 +50,7 @@
             </span>
         </div>
 
-        <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+        <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60" data-reveal>
             <div class="flex flex-col gap-3 border-b border-slate-100 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                 <div class="flex min-w-0 items-center gap-3">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">

@@ -36,7 +36,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-2">
                         <button type="button" id="jurusan-add"
-                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-xs font-medium text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none sm:text-sm">
+                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-sm font-semibold text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none">
                             <x-lucide-plus class="h-4 w-4" />
                             Tambah Jurusan
                         </button>
@@ -711,11 +711,11 @@
 
                 return `
                     <div class="inline-flex items-center gap-2">
-                        <button type="button" data-action="edit" data-id="${k.id}" aria-label="Ubah ${esc(labelJurusan(k))}"
+                        <button type="button" data-action="edit" data-id="${k.id}" aria-label="Ubah ${esc(labelJurusan(k))}" title="Ubah ${esc(labelJurusan(k))}"
                             class="jurusan-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_EDIT}</button>
                         <button type="button" data-action="delete" data-id="${k.id}" aria-label="Hapus ${esc(labelJurusan(k))}"
-                            ${kunci ? 'disabled title="Jurusan ini masih dipakai kelas atau siswa, jadi belum bisa dihapus."' : ''}
-                            class="jurusan-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-red-50 hover:text-red-500 active:scale-90">${ICON_DEL}</button>
+                            ${kunci ? `disabled title="Hapus ${esc(labelJurusan(k))} - Jurusan ini masih dipakai kelas atau siswa, jadi belum bisa dihapus."` : `title="Hapus ${esc(labelJurusan(k))}"`}
+                            class="jurusan-act flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-white text-red-500 transition hover:bg-red-50 active:scale-90">${ICON_DEL}</button>
                     </div>`;
             };
 

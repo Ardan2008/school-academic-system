@@ -128,4 +128,42 @@ class DashboardSiswaTest extends TestCase
         $res->assertSee('PENUTUP_PENGUMUMAN');
         $res->assertSee('Lihat selengkapnya');
     }
+
+    public function test_tugas_belum_dikumpulkan_menampilkan_daftar_ringkas_dan_tautan(): void
+    {
+        $mapel = MataPelajaran::factory()->create(['nama' => 'Matematika']);
+        $guru = User::factory()->guru()->create(['name' => 'Budi Guru']);
+        $siswa = User::factory()->siswa('12-1')->create([
+            'jurusan' => 'Rekayasa Perangkat Lunak',
+        ]);
+
+        $data = [
+            'kelas' => '12-1',
+            'jurusan' => 'Rekayasa Perangkat Lunak',
+            'mata_pelajaran_id' => $mapel->id,
+            'guru_id' => $guru->id,
+        ];
+
+        Tugas::create($data + [
+            'judul' => 'PR Menunggu',
+            'deadline' => now()->addDays(2),
+        ]);
+
+        Tugas::create($data + [
+            'judul' => 'PR Terlambat',
+            'deadline' => now()->subDays(4),
+        ]);
+
+        $res = $this->actingAs($siswa)->get(route('dashboard.siswa.index'));
+
+        $res->assertOk()
+            ->assertSee('data-region="tugas"', false)
+            ->assertSee('PR Menunggu')
+            ->assertSee('PR Terlambat')
+            ->assertSee('Budi Guru')
+            ->assertSee('Terlambat 4 hari')
+            ->assertSee('Lihat Tugas')
+            ->assertSee('status=menunggu', false)
+            ->assertSee('status=terlambat', false);
+    }
 }

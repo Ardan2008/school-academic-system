@@ -24,9 +24,8 @@ use Illuminate\View\View;
 /**
  * Input Nilai Guru.
  *
- * Guru hanya boleh menilai mapel yang namanya cocok dengan users.mata_pelajaran
- * (satu-satunya penghubung guru–mapel di sistem ini, sama seperti kolom Guru
- * Pengampu di Laporan Akademik). Tiap baris menyimpan kelas/jurusan apa adanya
+ * Guru hanya boleh menilai mapel dan rombel yang menjadi penugasannya.
+ * Tiap baris menyimpan kelas/jurusan apa adanya
  * saat itu agar laporan lama tidak berubah saat siswa naik kelas. Simpan memakai
  * updateOrCreate pada kunci unik (user + mapel + tahun_ajaran + semester),
  * sehingga menekan Simpan dua kali tidak membuat baris ganda.
@@ -51,9 +50,18 @@ class InputNilaiController extends Controller
         $guru = $this->guru($request);
         $periode = $this->periodeDariRequest($request);
 
-        $mapel = $this->mapelDiampu($guru);
+        $mapel = $this->akademik->mapelDiampu($guru);
         $siswa = $this->siswa($guru);
         $siswaRows = $siswa->map(fn (User $murid) => $this->barisSiswa($murid))->values();
+        $kelas = $this->kelasOptionsUntukMapel($guru, $mapel, $siswaRows);
+        $mapelAwalId = (int) $request->query('mapel_id', 0);
+        $mapelTerpilih = null;
+        if ($mapelAwalId > 0) {
+            $mapelTerpilih = $mapel->first(fn (MataPelajaran $m) => (int) $m->id === $mapelAwalId);
+            if (! $mapelTerpilih) {
+                abort(403, 'Anda tidak memiliki akses untuk menginput nilai pada mata pelajaran ini.');
+            }
+        }
 
         return view('dashboard.guru.input-nilai.index', [
             'inputNilaiData' => [
@@ -65,7 +73,9 @@ class InputNilaiController extends Controller
                     'kode' => $m->kode,
                     'nama' => $m->nama,
                 ])->values(),
-                'kelas' => $this->kelasOptions($siswaRows),
+                'mapel_terpilih_id' => $mapelTerpilih?->id,
+                'kelas' => $kelas,
+                'kelas_semua' => $this->ratakanKelas($mapel, $kelas),
                 'jurusan' => $siswa
                     ->pluck('jurusan')
                     ->filter(fn ($j) => $j !== null && trim((string) $j) !== '')
@@ -73,7 +83,7 @@ class InputNilaiController extends Controller
                     ->sort()
                     ->values(),
                 'siswa' => $siswaRows,
-                'nilai' => $this->nilaiUntuk($mapel),
+                'nilai' => $this->nilaiUntuk($guru, $mapel),
                 'kkm_bawaan' => self::KKM_BAWAAN,
                 'batas' => [
                     'min' => self::NILAI_MINIMUM,
@@ -139,7 +149,7 @@ class InputNilaiController extends Controller
 
         $jurusan = trim((string) ($data['jurusan'] ?? ''));
 
-        if ($this->akademik->pasanganEksplisit($guru)->isNotEmpty()
+        if ($this->akademik->sudahDiatur($guru)
             && ! $this->akademik->bolehMengajarEksplisit($guru, $mapel->id, $kelas, $jurusan)) {
             throw ValidationException::withMessages([
                 'kelas' => 'Anda tidak mengajar mata pelajaran ini di kelas tersebut.',
@@ -319,32 +329,9 @@ class InputNilaiController extends Controller
         ];
     }
 
-    /**
-     * Mata pelajaran yang diampu guru, dicocokkan lewat nama seperti kolom
-     * "Guru Pengampu" di Laporan Akademik. Guru tanpa penugasan mendapat daftar
-     * kosong, dan halaman menampilkan keterangan yang jelas daripada membiarkan
-     * guru menilai mata pelajaran milik orang lain.
-     *
-     * @return Collection<int, MataPelajaran>
-     */
-    public function mapelDiampu(User $guru): Collection
-    {
-        $nama = trim((string) $guru->mata_pelajaran);
-
-        if ($nama === '') {
-            return collect();
-        }
-
-        return MataPelajaran::query()
-            ->orderBy('nama')
-            ->get()
-            ->filter(fn (MataPelajaran $mapel) => strcasecmp(trim((string) $mapel->nama), $nama) === 0)
-            ->values();
-    }
-
     protected function diampu(User $guru, MataPelajaran $mapel): bool
     {
-        return $this->mapelDiampu($guru)->contains(fn (MataPelajaran $m) => $m->id === $mapel->id);
+        return $this->akademik->mapelDiampu($guru)->contains(fn (MataPelajaran $m) => $m->id === $mapel->id);
     }
 
     /**
@@ -387,13 +374,13 @@ class InputNilaiController extends Controller
     }
 
     /**
-     * Seluruh nilai untuk mata pelajaran yang diampu. Semua periode ikut
-     * dikirim supaya layar bisa berpindah semester tanpa memuat ulang halaman.
+     * Nilai untuk mapel dan rombel yang masih menjadi cakupan guru. Semua
+     * periode ikut dikirim supaya layar bisa berpindah semester tanpa memuat ulang halaman.
      *
      * @param  Collection<int, MataPelajaran>  $mapel
      * @return Collection<int, array<string, mixed>>
      */
-    protected function nilaiUntuk(Collection $mapel): Collection
+    protected function nilaiUntuk(User $guru, Collection $mapel): Collection
     {
         $ids = $mapel->pluck('id')->all();
 
@@ -401,9 +388,24 @@ class InputNilaiController extends Controller
             return collect();
         }
 
+        $ditugaskan = $this->akademik->sudahDiatur($guru);
+        $pasangan = $ditugaskan ? $this->akademik->pasanganEksplisit($guru) : collect();
+
         return Nilai::query()
             ->whereIn('mata_pelajaran_id', $ids)
             ->get()
+            ->filter(function (Nilai $nilai) use ($ditugaskan, $pasangan): bool {
+                if (! $ditugaskan) {
+                    return true;
+                }
+
+                return $this->akademik->cocokPasangan(
+                    $pasangan,
+                    (int) $nilai->mata_pelajaran_id,
+                    (string) $nilai->kelas,
+                    $nilai->jurusan
+                );
+            })
             ->map(fn (Nilai $nilai) => [
                 'id' => $nilai->id,
                 'user_id' => $nilai->user_id,
@@ -446,6 +448,50 @@ class InputNilaiController extends Controller
             ->merge($dariNilai)
             ->unique()
             ->sortByDesc(fn ($tahun) => Periode::urutan((string) $tahun, Periode::SEMESTER_GANJIL))
+            ->values()
+            ->all();
+    }
+
+    protected function kelasOptionsUntukMapel(User $guru, Collection $mapel, Collection $siswaRows): array
+    {
+        $hasil = [];
+
+        foreach ($mapel as $item) {
+            $rombels = $this->akademik->pasanganUntukMapel($guru, (int) $item->id)
+                ->map(fn (array $pasangan) => [
+                    'kelas' => $pasangan['kelas'],
+                    'jurusan' => $pasangan['jurusan'],
+                ]);
+
+            $tersedia = $siswaRows->filter(function (array $baris) use ($rombels): bool {
+                return $rombels->contains(fn (array $rombel): bool => $rombel['kelas'] === $baris['kelas_normal']
+                    && ($rombel['jurusan'] === '' || $rombel['jurusan'] === (string) ($baris['jurusan'] ?? '')));
+            });
+
+            $hasil[(int) $item->id] = $this->kelasOptions($tersedia);
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * @param  array<int, array<int, array{kelas: string, jurusan: string}>>  $kelasPerMapel
+     * @return array<int, array{mata_pelajaran_id: int, mata_pelajaran_nama: string, kelas: string, jurusan: string}>
+     */
+    protected function ratakanKelas(Collection $mapel, array $kelasPerMapel): array
+    {
+        return $mapel
+            ->flatMap(fn (MataPelajaran $item) => collect($kelasPerMapel[(int) $item->id] ?? [])
+                ->map(fn (array $kelas) => [
+                    'mata_pelajaran_id' => (int) $item->id,
+                    'mata_pelajaran_nama' => (string) $item->nama,
+                    'kelas' => $kelas['kelas'],
+                    'jurusan' => $kelas['jurusan'],
+                ]))
+            ->unique(fn (array $baris) => $baris['mata_pelajaran_id'].'|'.$baris['jurusan'].'|'.$baris['kelas'])
+            ->sort(fn (array $a, array $b) => strcasecmp($a['jurusan'], $b['jurusan'])
+                ?: StrukturKelas::bandingkanKelas($a['kelas'], $b['kelas'])
+                ?: strcasecmp($a['mata_pelajaran_nama'], $b['mata_pelajaran_nama']))
             ->values()
             ->all();
     }

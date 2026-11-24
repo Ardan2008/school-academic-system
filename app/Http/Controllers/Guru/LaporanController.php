@@ -50,7 +50,8 @@ class LaporanController extends Controller
             $filter['kelas'],
             null,
             $mapelIds,
-            $filter['cari']
+            $filter['cari'],
+            $guru
         );
 
         // Rekap per kelas dihitung penuh lebih dulu agar cetak dan kartu ringkasan
@@ -60,13 +61,14 @@ class LaporanController extends Controller
             $filter['semester'],
             $filter['kelas'],
             null,
-            $mapelIds
+            $mapelIds,
+            $guru
         );
 
         return view('dashboard.guru.laporan.index', [
             'filter' => $filter,
             'semesters' => Periode::SEMESTERS,
-            'tahunAjarans' => $this->statistik->tahunAjaranTersedia($mapelIds),
+            'tahunAjarans' => $this->statistik->tahunAjaranTersedia($mapelIds, $guru),
             'kelasOptions' => $this->statistik->kelasDiampu($guru),
             'mapelDiampu' => $this->statistik->mapelDiampu($guru),
             'guru' => $guru,
@@ -76,7 +78,8 @@ class LaporanController extends Controller
                 $filter['semester'],
                 $filter['kelas'],
                 null,
-                $mapelIds
+                $mapelIds,
+                $guru
             ),
             // Tabel di halaman ini ditampilkan berhalaman agar laporan tetap
             // ringkas di layar. Salinan cetak dan export tetap memakai seluruh
@@ -102,7 +105,8 @@ class LaporanController extends Controller
             $filter['kelas'],
             null,
             $mapelIds,
-            $filter['cari']
+            $filter['cari'],
+            $guru
         );
 
         $judulSeri = ['No', 'NIS', 'Nama', 'Kelas', 'Jurusan'];

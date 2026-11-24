@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\MataPelajaran;
 use App\Models\Nilai;
 use App\Models\User;
+use App\Services\GuruAkademik;
+use App\Services\PenugasanMengajarService;
 use App\Services\XlsxExportService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -14,15 +16,17 @@ use Illuminate\View\View;
 
 class MataPelajaranController extends Controller
 {
+    public function __construct(
+        private readonly PenugasanMengajarService $penugasan,
+        private readonly GuruAkademik $akademik,
+    ) {}
+
     public function index(Request $request): View
     {
-        $guru = $request->user();
-        if (! $guru instanceof User || $guru->role !== 'guru') {
-            abort(403);
-        }
+        $guru = $this->guru($request);
 
         $rows = $this->daftar($guru);
-        $mapelSaya = $rows->firstWhere('diampu_saya', true);
+        $totalSiswa = $rows->pluck('total_siswa_relevan')->sum();
 
         $stats = [
             [
@@ -32,67 +36,53 @@ class MataPelajaranController extends Controller
                 'icon' => 'lucide-book-open',
             ],
             [
-                'key' => 'diampu_saya',
-                'label' => 'Mapel Saya',
-                'value' => $mapelSaya ? ($mapelSaya['kode'] ? $mapelSaya['kode'] : '1 Mapel') : 0,
-                'subtitle' => $mapelSaya ? $mapelSaya['nama'] : 'Belum ditugaskan',
-                'icon' => 'lucide-book-marked',
-            ],
-            [
-                'key' => 'dipakai',
+                'key' => 'aktif',
                 'label' => 'Mapel Aktif',
-                'value' => $rows->where('dipakai', true)->count(),
+                'value' => $rows->where('aktif', true)->count(),
                 'icon' => 'lucide-check-circle',
             ],
             [
-                'key' => 'pengampu',
-                'label' => 'Total Pengampu',
-                'value' => (int) $rows->sum('jumlah_pengampu'),
+                'key' => 'siswa',
+                'label' => 'Total Siswa',
+                'value' => (int) $totalSiswa,
                 'icon' => 'lucide-users',
+            ],
+            [
+                'key' => 'nilai',
+                'label' => 'Catatan Nilai',
+                'value' => (int) $rows->sum('total_nilai'),
+                'icon' => 'lucide-file-spreadsheet',
             ],
         ];
 
         $statTone = [
             'total' => ['bg-blue-100 text-primary-60', '#1E86FF'],
-            'diampu_saya' => ['bg-indigo-100 text-indigo-600', '#4F46E5'],
-            'dipakai' => ['bg-emerald-100 text-emerald-600', '#059669'],
-            'pengampu' => ['bg-amber-100 text-amber-600', '#D97706'],
+            'aktif' => ['bg-emerald-100 text-emerald-600', '#059669'],
+            'siswa' => ['bg-indigo-100 text-indigo-600', '#4F46E5'],
+            'nilai' => ['bg-amber-100 text-amber-600', '#D97706'],
         ];
 
         return view('dashboard.guru.mata-pelajaran.index', [
             'stats' => $stats,
             'statTone' => $statTone,
-            'mapelSaya' => $mapelSaya,
             'mapelData' => [
                 'mapel' => $rows,
-                'guruMapel' => $guru->mata_pelajaran,
             ],
         ]);
     }
 
     public function export(Request $request): Response
     {
-        $guru = $request->user();
-        if (! $guru instanceof User || $guru->role !== 'guru') {
-            abort(403);
-        }
+        $guru = $this->guru($request);
 
         $rows = $this->daftar($guru)
             ->filter(fn (array $m) => $this->lolosFilter($m, $request))
             ->values();
 
-        $headers = ['No', 'Kode', 'Mata Pelajaran', 'Status Diampu', 'Guru Pengampu', 'Catatan Nilai'];
+        $headers = ['No', 'Kode', 'Mata Pelajaran', 'Status', 'Siswa Relevan', 'Catatan Nilai', 'Rata-Rata'];
 
         $baris = [];
         foreach ($rows as $i => $m) {
-            $pengampuStr = ! empty($m['pengampu_list'])
-                ? implode(', ', array_column($m['pengampu_list'], 'name'))
-                : '-';
-
-            $statusStr = $m['diampu_saya']
-                ? 'Diampu Anda'
-                : ($m['dipakai'] ? 'Aktif' : 'Belum Ada Pengampu');
-
             $nilaiStr = $m['total_nilai'] > 0
                 ? "{$m['total_nilai']} nilai ({$m['total_siswa']} siswa)"
                 : 'Belum ada nilai';
@@ -101,9 +91,10 @@ class MataPelajaranController extends Controller
                 $i + 1,
                 $m['kode'] ?? '-',
                 $m['nama'],
-                $statusStr,
-                $pengampuStr,
+                $m['aktif'] ? 'Aktif' : 'Nonaktif',
+                (int) ($m['total_siswa_relevan'] ?? 0),
                 $nilaiStr,
+                $m['rata_rata'] ?? '-',
             ];
         }
 
@@ -130,15 +121,11 @@ class MataPelajaranController extends Controller
         $status = trim((string) $request->input('status'));
         $q = trim((string) $request->input('q'));
 
-        if ($status === 'diampu_saya' && ! $m['diampu_saya']) {
+        if ($status === 'aktif' && ! $m['aktif']) {
             return false;
         }
 
-        if ($status === 'dipakai' && ! $m['dipakai']) {
-            return false;
-        }
-
-        if ($status === 'kosong' && $m['dipakai']) {
+        if ($status === 'nonaktif' && $m['aktif']) {
             return false;
         }
 
@@ -155,25 +142,30 @@ class MataPelajaranController extends Controller
         return true;
     }
 
-    protected function daftar(?User $guru): Collection
+    protected function daftar(User $guru): Collection
     {
-        $pengampu = $this->pengampuGrouped();
-        $nilaiStats = $this->nilaiStats();
-        $namaMapelGuru = $guru ? trim((string) $guru->mata_pelajaran) : '';
+        $mapelDiampu = $this->penugasan->mapelDiampu($guru);
+        $mapelIds = $mapelDiampu->pluck('id')->map(fn ($id) => (int) $id)->all();
 
-        return MataPelajaran::query()
-            ->orderBy('nama')
-            ->get()
-            ->map(function (MataPelajaran $mapel) use ($pengampu, $nilaiStats, $namaMapelGuru, $guru) {
-                $guruList = $pengampu->get($mapel->nama, collect());
+        if ($mapelIds === []) {
+            return collect();
+        }
+
+        $nilaiStats = $this->nilaiStats($mapelIds);
+        $pengampu = $this->pengampuByMapelId($mapelIds);
+
+        return $mapelDiampu
+            ->map(function (MataPelajaran $mapel) use ($nilaiStats, $pengampu, $guru) {
                 $stat = $nilaiStats->get($mapel->id);
-
-                $diampuSaya = $namaMapelGuru !== '' && strcasecmp($namaMapelGuru, trim($mapel->nama)) === 0;
+                $siswaRelevan = $this->siswaRelevanCount($guru, (int) $mapel->id);
+                $guruList = $pengampu->get((int) $mapel->id, collect());
+                $diampuSaya = $guruList->contains(fn (User $u) => $u->id === $guru->id);
 
                 return [
                     'id' => $mapel->id,
                     'kode' => $mapel->kode,
                     'nama' => $mapel->nama,
+                    'aktif' => (bool) $mapel->aktif,
                     'jumlah_pengampu' => $guruList->count(),
                     'dipakai' => $guruList->isNotEmpty(),
                     'diampu_saya' => $diampuSaya,
@@ -182,38 +174,81 @@ class MataPelajaranController extends Controller
                         'name' => $u->name,
                         'nip' => $u->nip ?? '-',
                         'email' => $u->email,
-                        'is_me' => $guru && $u->id === $guru->id,
+                        'is_me' => $u->id === $guru->id,
                     ])->values()->all(),
                     'total_nilai' => (int) ($stat->total_nilai ?? 0),
                     'rata_rata' => isset($stat->rata_rata) ? round((float) $stat->rata_rata, 1) : null,
                     'total_siswa' => (int) ($stat->total_siswa ?? 0),
+                    'total_siswa_relevan' => $siswaRelevan,
                 ];
             })
             ->values();
     }
 
     /**
-     * @return Collection<string, Collection<int, User>>
+     * @param  array<int>  $mapelIds
+     * @return Collection<int, Collection<int, User>>
      */
-    protected function pengampuGrouped(): Collection
+    protected function pengampuByMapelId(array $mapelIds): Collection
     {
-        return User::query()
+        $grup = collect();
+
+        User::query()
             ->where('role', 'guru')
-            ->whereNotNull('mata_pelajaran')
-            ->where('mata_pelajaran', '!=', '')
-            ->get(['id', 'name', 'nip', 'email', 'mata_pelajaran'])
-            ->groupBy(fn (User $user) => trim((string) $user->mata_pelajaran));
+            ->get(['id', 'name', 'nip', 'email', 'mata_pelajaran', 'penugasan_diatur'])
+            ->each(function (User $guru) use ($grup, $mapelIds): void {
+                $this->penugasan->mapelDiampu($guru)
+                    ->filter(fn (MataPelajaran $mapel) => in_array((int) $mapel->id, $mapelIds, true))
+                    ->each(function (MataPelajaran $mapel) use ($grup, $guru): void {
+                        $id = (int) $mapel->id;
+                        $grup->put($id, $grup->get($id, collect())->push($guru));
+                    });
+            });
+
+        return $grup->map(fn (Collection $gurus) => $gurus->unique('id')->values());
     }
 
     /**
+     * @param  array<int>  $mapelIds
      * @return Collection<int, object>
      */
-    protected function nilaiStats(): Collection
+    protected function nilaiStats(array $mapelIds): Collection
     {
         return Nilai::query()
+            ->whereIn('mata_pelajaran_id', $mapelIds)
             ->selectRaw('mata_pelajaran_id, count(*) as total_nilai, avg(nilai) as rata_rata, count(distinct user_id) as total_siswa')
             ->groupBy('mata_pelajaran_id')
             ->get()
             ->keyBy('mata_pelajaran_id');
+    }
+
+    protected function siswaRelevanCount(User $guru, int $mapelId): int
+    {
+        $rombels = $this->akademik->pasanganUntukMapel($guru, $mapelId);
+
+        if ($rombels->isEmpty()) {
+            return 0;
+        }
+
+        return User::query()
+            ->where('role', 'siswa')
+            ->where('status', User::STATUS_AKTIF)
+            ->get(['kelas', 'jurusan'])
+            ->filter(fn (User $siswa) => $this->akademik->cocokRombel($siswa, $rombels->map(fn (array $r) => [
+                'kelas' => $r['kelas'],
+                'jurusan' => $r['jurusan'],
+            ])->values()))
+            ->count();
+    }
+
+    protected function guru(Request $request): User
+    {
+        $guru = $request->user();
+
+        if (! $guru instanceof User || $guru->role !== 'guru') {
+            abort(403);
+        }
+
+        return $guru;
     }
 }

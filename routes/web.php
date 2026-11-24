@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\AkunController;
 use App\Http\Controllers\Admin\BackupDatabaseController;
 use App\Http\Controllers\Admin\GuruController;
+use App\Http\Controllers\Admin\JadwalController as AdminJadwalController;
+use App\Http\Controllers\Admin\JamBelajarController;
 use App\Http\Controllers\Admin\JurusanController;
 use App\Http\Controllers\Admin\KelasController;
 use App\Http\Controllers\Admin\KendalaAkunController;
@@ -124,6 +126,8 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
         Route::post('/dashboard/admin/data-guru', [GuruController::class, 'store'])->name('dashboard.admin.data-guru.store');
         Route::put('/dashboard/admin/data-guru/{user}', [GuruController::class, 'update'])->name('dashboard.admin.data-guru.update');
         Route::delete('/dashboard/admin/data-guru/{user}', [GuruController::class, 'destroy'])->name('dashboard.admin.data-guru.destroy');
+        Route::get('/dashboard/admin/data-guru/{user}/penugasan', [GuruController::class, 'penugasan'])->name('dashboard.admin.data-guru.penugasan');
+        Route::put('/dashboard/admin/data-guru/{user}/penugasan', [GuruController::class, 'simpanPenugasan'])->name('dashboard.admin.data-guru.penugasan.update');
 
         Route::get('/dashboard/admin/data-siswa', [SiswaController::class, 'index'])->name('dashboard.admin.data-siswa.index');
         Route::get('/dashboard/admin/data-siswa/export', [SiswaController::class, 'export'])->name('dashboard.admin.data-siswa.export');
@@ -133,9 +137,27 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
 
         Route::get('/dashboard/admin/data-kelas', [KelasController::class, 'index'])->name('dashboard.admin.data-kelas.index');
         Route::get('/dashboard/admin/data-kelas/export', [KelasController::class, 'export'])->name('dashboard.admin.data-kelas.export');
+        Route::put('/dashboard/admin/data-kelas/jam-belajar/operasional', [JamBelajarController::class, 'updateOperasional'])
+            ->name('dashboard.admin.data-kelas.jam-belajar.operasional.update');
+        Route::post('/dashboard/admin/data-kelas/jam-belajar/sesi', [JamBelajarController::class, 'storeSesi'])
+            ->name('dashboard.admin.data-kelas.jam-belajar.sesi.store');
+        Route::put('/dashboard/admin/data-kelas/jam-belajar/sesi/{sesi}', [JamBelajarController::class, 'updateSesi'])
+            ->name('dashboard.admin.data-kelas.jam-belajar.sesi.update');
+        Route::delete('/dashboard/admin/data-kelas/jam-belajar/sesi/{sesi}', [JamBelajarController::class, 'destroySesi'])
+            ->name('dashboard.admin.data-kelas.jam-belajar.sesi.destroy');
+
         Route::post('/dashboard/admin/data-kelas', [KelasController::class, 'store'])->name('dashboard.admin.data-kelas.store');
         Route::put('/dashboard/admin/data-kelas/{kelas}', [KelasController::class, 'update'])->name('dashboard.admin.data-kelas.update');
         Route::delete('/dashboard/admin/data-kelas/{kelas}', [KelasController::class, 'destroy'])->name('dashboard.admin.data-kelas.destroy');
+
+        Route::get('/dashboard/admin/jam-belajar', [JamBelajarController::class, 'index'])->name('dashboard.admin.jam-belajar.index');
+
+        Route::get('/dashboard/admin/jadwal-mengajar', [AdminJadwalController::class, 'index'])->name('dashboard.admin.jadwal-mengajar.index');
+        Route::get('/dashboard/admin/jadwal-mengajar/export', [AdminJadwalController::class, 'export'])->name('dashboard.admin.jadwal-mengajar.export');
+        Route::post('/dashboard/admin/jadwal-mengajar', [AdminJadwalController::class, 'store'])->name('dashboard.admin.jadwal-mengajar.store');
+        Route::post('/dashboard/admin/jadwal-mengajar/intent', [AdminJadwalController::class, 'intent'])->name('dashboard.admin.jadwal-mengajar.intent');
+        Route::put('/dashboard/admin/jadwal-mengajar/{jadwal}', [AdminJadwalController::class, 'update'])->name('dashboard.admin.jadwal-mengajar.update');
+        Route::delete('/dashboard/admin/jadwal-mengajar/{jadwal}', [AdminJadwalController::class, 'destroy'])->name('dashboard.admin.jadwal-mengajar.destroy');
 
         Route::get('/dashboard/admin/data-jurusan', [JurusanController::class, 'index'])->name('dashboard.admin.data-jurusan.index');
         Route::get('/dashboard/admin/data-jurusan/export', [JurusanController::class, 'export'])->name('dashboard.admin.data-jurusan.export');
@@ -195,13 +217,13 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
         Route::get('/dashboard/guru/data-siswa/export', [App\Http\Controllers\Guru\SiswaController::class, 'export'])
             ->name('dashboard.guru.data-siswa.export');
 
-        Route::get('/dashboard/guru/mata-pelajaran', [App\Http\Controllers\Guru\MataPelajaranController::class, 'index'])
-            ->name('dashboard.guru.mata-pelajaran.index');
-        Route::get('/dashboard/guru/mata-pelajaran/export', [App\Http\Controllers\Guru\MataPelajaranController::class, 'export'])
-            ->name('dashboard.guru.mata-pelajaran.export');
+        Route::redirect('/dashboard/guru/mata-pelajaran', '/dashboard/guru');
+        Route::redirect('/dashboard/guru/mata-pelajaran/{any}', '/dashboard/guru')->where('any', '.*');
 
         Route::get('/dashboard/guru/jadwal-pelajaran', [JadwalController::class, 'index'])
             ->name('dashboard.guru.jadwal-pelajaran.index');
+        Route::get('/dashboard/guru/jadwal-pelajaran/export', [JadwalController::class, 'export'])
+            ->name('dashboard.guru.jadwal-pelajaran.export');
 
         Route::get('/dashboard/guru/tugas-materi', [TugasMateriController::class, 'index'])
             ->name('dashboard.guru.tugas-materi.index');
@@ -211,6 +233,10 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
             ->name('dashboard.guru.tugas-materi.tugas.update');
         Route::delete('/dashboard/guru/tugas-materi/tugas/{tugas}', [TugasMateriController::class, 'destroyTugas'])
             ->name('dashboard.guru.tugas-materi.tugas.destroy');
+        Route::get('/dashboard/guru/tugas-materi/tugas/{tugas}/preview', [TugasMateriController::class, 'previewTugas'])
+            ->name('dashboard.guru.tugas-materi.tugas.preview');
+        Route::get('/dashboard/guru/tugas-materi/tugas/{tugas}/unduh', [TugasMateriController::class, 'unduhTugas'])
+            ->name('dashboard.guru.tugas-materi.tugas.unduh');
         Route::get('/dashboard/guru/tugas-materi/tugas/{tugas}/pengumpulan', [TugasMateriController::class, 'pengumpulan'])
             ->name('dashboard.guru.tugas-materi.pengumpulan');
         Route::put('/dashboard/guru/tugas-materi/pengumpulan/{pengumpulan}', [TugasMateriController::class, 'updatePengumpulan'])
@@ -221,6 +247,12 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
             ->name('dashboard.guru.tugas-materi.materi.update');
         Route::delete('/dashboard/guru/tugas-materi/materi/{materi}', [TugasMateriController::class, 'destroyMateri'])
             ->name('dashboard.guru.tugas-materi.materi.destroy');
+        Route::get('/dashboard/guru/tugas-materi/materi/{materi}', [TugasMateriController::class, 'detailMateri'])
+            ->name('dashboard.guru.tugas-materi.materi.show');
+        Route::get('/dashboard/guru/tugas-materi/materi/{materi}/preview', [TugasMateriController::class, 'previewMateri'])
+            ->name('dashboard.guru.tugas-materi.materi.preview');
+        Route::get('/dashboard/guru/tugas-materi/materi/{materi}/unduh', [TugasMateriController::class, 'unduhMateri'])
+            ->name('dashboard.guru.tugas-materi.materi.unduh');
 
         Route::get('/dashboard/guru/input-nilai', [InputNilaiController::class, 'index'])
             ->name('dashboard.guru.input-nilai.index');
@@ -255,6 +287,20 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
 
         Route::get('/dashboard/siswa/tugas-materi', [AkademikController::class, 'tugasMateri'])
             ->name('dashboard.siswa.tugas-materi.index');
+        Route::get('/dashboard/siswa/tugas-materi/tugas/{tugas}', [AkademikController::class, 'detailTugas'])
+            ->name('dashboard.siswa.tugas-materi.tugas.show');
+        Route::get('/dashboard/siswa/tugas-materi/tugas/{tugas}/preview', [AkademikController::class, 'previewTugas'])
+            ->name('dashboard.siswa.tugas-materi.tugas.preview');
+        Route::get('/dashboard/siswa/tugas-materi/tugas/{tugas}/unduh', [AkademikController::class, 'unduhTugas'])
+            ->name('dashboard.siswa.tugas-materi.tugas.unduh');
+        Route::post('/dashboard/siswa/tugas-materi/tugas/{tugas}/pengumpulan', [AkademikController::class, 'kumpulkanTugas'])
+            ->name('dashboard.siswa.tugas-materi.pengumpulan.store');
+        Route::get('/dashboard/siswa/tugas-materi/materi/{materi}', [AkademikController::class, 'detailMateri'])
+            ->name('dashboard.siswa.tugas-materi.materi.show');
+        Route::get('/dashboard/siswa/tugas-materi/materi/{materi}/preview', [AkademikController::class, 'previewMateri'])
+            ->name('dashboard.siswa.tugas-materi.materi.preview');
+        Route::get('/dashboard/siswa/tugas-materi/materi/{materi}/unduh', [AkademikController::class, 'unduhMateri'])
+            ->name('dashboard.siswa.tugas-materi.materi.unduh');
 
         Route::get('/dashboard/siswa/riwayat-akademik', [AkademikController::class, 'riwayat'])
             ->name('dashboard.siswa.riwayat-akademik.index');
@@ -264,6 +310,8 @@ Route::middleware(['guard', 'auth', 'no-cache'])->group(function () {
 
         Route::get('/dashboard/siswa/rapor', [AkademikController::class, 'rapor'])
             ->name('dashboard.siswa.rapor.index');
+        Route::get('/dashboard/siswa/rapor/export', [AkademikController::class, 'exportRapor'])
+            ->name('dashboard.siswa.rapor.export');
 
         Route::get('/dashboard/siswa/profile', function () {
             return view('dashboard.siswa.profile.index');

@@ -115,10 +115,10 @@
             @endforeach
         </div>
 
-        {{-- Baris 1: grafik perkembangan (2/3) + jadwal hari ini (1/3) --}}
+        {{-- Baris 1: grafik perkembangan (3/5) + jadwal hari ini (2/5) --}}
         {{-- Layout 3 kolom baru aktif di xl, karena di lg lebar konten sudah berkurang oleh sidebar --}}
-        <div class="grid grid-cols-1 gap-5 sm:gap-6 xl:grid-cols-3">
-            <div data-reveal style="--d: .25s" class="min-w-0 xl:col-span-2">
+        <div class="grid grid-cols-1 gap-5 sm:gap-6 xl:grid-cols-5">
+            <div data-reveal style="--d: .25s" class="min-w-0 xl:col-span-3">
                 <div class="flex h-full min-w-0 flex-col rounded-2xl border border-slate-100 bg-white p-5 shadow-md shadow-slate-200/60 sm:p-6">
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div class="min-w-0">
@@ -149,7 +149,7 @@
                 </div>
             </div>
 
-            <div data-region="jadwal" data-reveal style="--d: .3s" class="min-w-0">
+            <div data-region="jadwal" data-reveal style="--d: .3s" class="min-w-0 xl:col-span-2">
                 <div class="flex h-full min-w-0 flex-col rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
                     <div class="flex items-center justify-between gap-3 p-5 sm:p-6">
                         <div class="min-w-0">
@@ -187,10 +187,10 @@
             </div>
         </div>
 
-        {{-- Baris 2: tugas belum dikumpulkan (2/3) + notifikasi (1/3) --}}
-        <div class="grid grid-cols-1 gap-5 sm:gap-6 xl:grid-cols-3">
-            <div data-region="tugas" data-reveal style="--d: .35s" class="min-w-0 xl:col-span-2">
-                <div class="flex h-full min-w-0 flex-col rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+        {{-- Baris 2: tugas belum dikumpulkan (3/5) + notifikasi (2/5) --}}
+        <div class="grid grid-cols-1 items-start gap-5 sm:gap-6 xl:grid-cols-5">
+            <div data-region="tugas" data-reveal style="--d: .35s" class="min-w-0 xl:col-span-3">
+                <div class="flex min-w-0 flex-col rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
                     <div class="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                         <div class="min-w-0">
                             <h3 class="text-sm font-semibold text-slate-900">Tugas Belum Dikumpulkan</h3>
@@ -206,94 +206,83 @@
                         @endif
                     </div>
 
-                    <div class="flex-1 overflow-x-auto border-t border-slate-100 md:hidden">
-                        <div class="divide-y divide-slate-100">
-                            @forelse ($tugasPaginasi ?? $tugasBelumDikumpulkan as $tugas)
-                                @php $terlambat = $tugas->sudahLewatDeadline(); @endphp
-                                <div class="flex flex-col gap-3 p-4 text-sm sm:p-5">
-                                    <div class="flex flex-wrap items-start justify-between gap-3">
-                                        <div class="min-w-0 flex-1 space-y-1.5">
-                                            <p class="truncate text-sm font-medium text-slate-900" title="{{ $tugas->judul }}">{{ $tugas->judul }}</p>
-                                            <p class="truncate text-xs text-slate-500" title="{{ $tugas->mataPelajaran?->nama ?? '-' }}">
-                                                <span class="font-medium text-slate-600">Mata Pelajaran:</span> {{ $tugas->mataPelajaran?->nama ?? '-' }}
-                                            </p>
-                                            <p class="truncate text-xs text-slate-500" title="{{ $tugas->guru?->name ?? '-' }}">
-                                                <span class="font-medium text-slate-600">Guru:</span> {{ $tugas->guru?->name ?? '-' }}
-                                            </p>
+                    {{-- Daftar ringkas (bukan tabel): tinggi mengikuti isi, tidak menyisakan ruang kosong. --}}
+                    <div class="divide-y divide-slate-100 border-t border-slate-100">
+                        @forelse ($tugasPaginasi ?? $tugasBelumDikumpulkan as $tugas)
+                            @php
+                                $terlambat = $tugas->sudahLewatDeadline();
+                                $statusKode = $terlambat ? 'terlambat' : 'menunggu';
+                                $statusLabel = $terlambat ? 'Terlambat' : 'Menunggu';
+                                $statusClass = $terlambat
+                                    ? 'bg-rose-50 text-rose-600 ring-rose-100'
+                                    : 'bg-amber-50 text-amber-600 ring-amber-100';
+                                $lihatTugasUrl = Route::has('dashboard.siswa.tugas-materi.index')
+                                    ? route('dashboard.siswa.tugas-materi.index', [
+                                        'tab' => 'tugas',
+                                        'status' => $statusKode,
+                                        'q' => $tugas->judul,
+                                    ])
+                                    : null;
+                            @endphp
+                            <article class="px-4 py-3.5 transition hover:bg-slate-50/70 sm:px-5 sm:py-4">
+                                <div class="flex items-start gap-3">
+                                    <span @class([
+                                        'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg',
+                                        'bg-rose-50 text-rose-600' => $terlambat,
+                                        'bg-primary-10 text-primary-70' => ! $terlambat,
+                                    ])>
+                                        <x-dynamic-component :component="$terlambat ? 'lucide-alert-circle' : 'lucide-clipboard-list'" class="h-4 w-4" />
+                                    </span>
+                                    <div class="min-w-0 flex-1">
+                                        <div class="flex flex-wrap items-start justify-between gap-2">
+                                            <p class="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900" title="{{ $tugas->judul }}">{{ $tugas->judul }}</p>
+                                            <span class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset {{ $statusClass }}">
+                                                <x-lucide-clock class="h-3.5 w-3.5" />
+                                                {{ $statusLabel }}
+                                            </span>
                                         </div>
-                                        <span @class([
-                                            'inline-flex shrink-0 self-start whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium',
-                                            'bg-rose-50 text-rose-600' => $terlambat,
-                                            'bg-amber-50 text-amber-600' => ! $terlambat,
-                                        ])>
-                                            {{ $terlambat ? 'Terlambat' : 'Menunggu' }}
-                                        </span>
-                                    </div>
-                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
-                                        <span class="inline-flex items-center gap-1.5">
-                                            <x-lucide-calendar-clock class="h-3.5 w-3.5" />
-                                            Deadline: {{ $tugas->labelDeadline() }}
-                                        </span>
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                                            <span class="inline-flex min-w-0 items-center gap-1.5" title="{{ $tugas->mataPelajaran?->nama ?? '-' }}">
+                                                <x-lucide-book-open class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                                <span class="truncate">{{ $tugas->mataPelajaran?->nama ?? '-' }}</span>
+                                            </span>
+                                            <span class="inline-flex min-w-0 items-center gap-1.5" title="{{ $tugas->guru?->name ?? '-' }}">
+                                                <x-lucide-user-round class="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                                                <span class="truncate">{{ $tugas->guru?->name ?? '-' }}</span>
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            @empty
-                                <p class="px-4 py-10 text-center text-sm text-slate-500">Semua tugas sudah dikumpulkan.</p>
-                            @endforelse
-                        </div>
+                                <div class="mt-3 flex flex-wrap items-center justify-between gap-2 pl-12">
+                                    <span @class([
+                                        'inline-flex items-center gap-1.5 text-xs font-medium',
+                                        'text-rose-600' => $terlambat,
+                                        'text-amber-600' => ! $terlambat,
+                                    ])>
+                                        <x-lucide-calendar-clock class="h-3.5 w-3.5 shrink-0" />
+                                        {{ $tugas->labelDeadline() }}
+                                    </span>
+                                    @if ($lihatTugasUrl)
+                                        <a href="{{ $lihatTugasUrl }}"
+                                           class="inline-flex shrink-0 items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-primary-70 transition hover:bg-primary-10 hover:gap-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60">
+                                            Lihat Tugas <x-lucide-arrow-right class="h-3.5 w-3.5 transition-transform" />
+                                        </a>
+                                    @endif
+                                </div>
+                            </article>
+                        @empty
+                            <div class="px-6 py-10 text-center text-sm text-slate-500">Semua tugas sudah dikumpulkan.</div>
+                        @endforelse
                     </div>
 
-                    <div class="flex-1 overflow-x-auto border-t border-slate-100 hidden md:block">
-                        <table class="w-full min-w-[720px] divide-y divide-slate-100">
-                            <thead>
-                                <tr class="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                                    <th class="whitespace-nowrap px-4 py-3 text-center font-semibold lg:px-5 lg:py-4">No</th>
-                                    <th class="whitespace-nowrap px-4 py-3 font-semibold lg:px-5 lg:py-4">Mata Pelajaran</th>
-                                    <th class="px-4 py-3 font-semibold lg:px-5 lg:py-4">Tugas</th>
-                                    <th class="whitespace-nowrap px-4 py-3 font-semibold lg:px-5 lg:py-4">Guru</th>
-                                    <th class="whitespace-nowrap px-4 py-3 font-semibold lg:px-5 lg:py-4">Deadline</th>
-                                    <th class="whitespace-nowrap px-4 py-3 text-center font-semibold lg:px-5 lg:py-4">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100 text-slate-800">
-                                @forelse ($tugasPaginasi ?? $tugasBelumDikumpulkan as $i => $tugas)
-                                    <tr class="transition hover:bg-slate-50/70">
-                                        <td class="px-4 py-3 text-center text-sm text-slate-500 lg:px-5 lg:py-4">{{ ($tugasPaginasi?->firstItem() ?? 1) + $i }}</td>
-                                        <td class="px-4 py-3 text-sm font-medium text-slate-900 lg:px-5 lg:py-4">{{ $tugas->mataPelajaran?->nama ?? '-' }}</td>
-                                        <td class="px-4 py-3 text-sm text-slate-600 lg:px-5 lg:py-4">
-                                            <div class="max-w-xs truncate" title="{{ $tugas->judul }}">{{ $tugas->judul }}</div>
-                                        </td>
-                                        <td class="px-4 py-3 text-sm text-slate-600 lg:px-5 lg:py-4">
-                                            <div class="max-w-[160px] truncate" title="{{ $tugas->guru?->name ?? '-' }}">{{ $tugas->guru?->name ?? '-' }}</div>
-                                        </td>
-                                        <td class="whitespace-nowrap px-4 py-3 text-sm text-slate-600 lg:px-5 lg:py-4">{{ $tugas->labelDeadline() }}</td>
-                                        <td class="px-4 py-3 text-center lg:px-5 lg:py-4">
-                                            @php $terlambat = $tugas->sudahLewatDeadline(); @endphp
-                                            <span @class([
-                                                'inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium',
-                                                'bg-rose-50 text-rose-600' => $terlambat,
-                                                'bg-amber-50 text-amber-600' => ! $terlambat,
-                                            ])>
-                                                {{ $terlambat ? 'Terlambat' : 'Menunggu' }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="6" class="px-6 py-14 text-center text-sm text-slate-500">Semua tugas sudah dikumpulkan.</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-
-                    @if (($tugasPaginasi ?? null) && $tugasPaginasi->total() > 0)
+                    @if (($tugasPaginasi ?? null) && $tugasPaginasi->total() > $tugasPaginasi->perPage())
                         <x-ui.table-footer :paginator="$tugasPaginasi" label="tugas" />
                     @endif
                 </div>
             </div>
 
-            <div data-region="notifikasi" data-reveal style="--d: .4s" class="min-w-0">
-                <div class="flex h-full min-w-0 flex-col rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+            <div data-region="notifikasi" data-reveal style="--d: .4s" class="min-w-0 xl:col-span-2">
+                <div class="flex min-w-0 flex-col rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
                     <div class="flex items-center justify-between gap-3 p-5 sm:p-6">
                         <h3 class="text-sm font-semibold text-slate-900">Notifikasi Terbaru</h3>
                     </div>
@@ -367,7 +356,7 @@
             </div>
 
             <div class="overflow-x-auto border-t border-slate-100 hidden md:block">
-                <table class="w-full min-w-[720px] divide-y divide-slate-100">
+                <table class="w-full min-w-[640px] divide-y divide-slate-100">
                     <thead>
                         <tr class="border-b border-slate-100 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                             <th class="whitespace-nowrap px-4 py-3 text-center font-semibold lg:px-5 lg:py-4">No</th>

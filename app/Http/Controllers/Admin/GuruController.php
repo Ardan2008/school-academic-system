@@ -4,18 +4,24 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\KelasRombel;
 use App\Models\MataPelajaran;
+use App\Models\PenugasanMengajar;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Services\PenugasanMengajarService;
 use App\Services\XlsxExportService;
 use App\Support\Credentials;
+use App\Support\Kelas;
 use App\Support\PasswordPolicy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -27,6 +33,8 @@ class GuruController extends Controller
 {
     /** Status yang boleh dipilih admin pada halaman Data Guru. */
     protected const STATUSES = ['Aktif', 'Nonaktif', 'Cuti'];
+
+    public function __construct(private readonly PenugasanMengajarService $penugasan) {}
 
     public function index(): View
     {
@@ -72,6 +80,7 @@ class GuruController extends Controller
         $guruData = [
             'guru' => $guru->values(),
             'mapel' => $this->mapelList(),
+            'penugasan_kelas' => $this->penugasanKelasOptions(),
             'statuses' => self::STATUSES,
             // Dipakai tombol "buat password acak" supaya formatnya sama persis
             // dengan password yang dibuat sistem, contoh "n6STpguX".
@@ -133,9 +142,14 @@ class GuruController extends Controller
             'name' => $data['nama'],
             'email' => $data['email'],
             'nip' => $data['nis'],
-            'mata_pelajaran' => $data['mapel'],
             'status' => $data['status'],
         ];
+
+        // Form identitas guru tidak lagi mengelola mata pelajaran; pertahankan
+        // nilai yang ada saat field tidak dikirim/diisi dari form tersebut.
+        if ($data['mapel'] !== '') {
+            $values['mata_pelajaran'] = $data['mapel'];
+        }
 
         // Password hanya diganti bila admin mengisinya ulang. Kalau nilai yang
         // dikirim bentrok dengan password awal akun lain, sistem membuatkan
@@ -188,6 +202,105 @@ class GuruController extends Controller
         ]);
     }
 
+    public function penugasan(User $user): JsonResponse
+    {
+        $this->ensureGuru($user);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'guru' => [
+                    'id' => $user->id,
+                    'nama' => $user->name,
+                ],
+                'mapel' => $this->penugasanMapelOptions($user),
+                'kelas' => $this->penugasanKelasOptions(),
+                'penugasan' => $this->penugasan->ringkasan($user)->values(),
+            ],
+        ]);
+    }
+
+    public function simpanPenugasan(Request $request, User $user): JsonResponse
+    {
+        $this->ensureGuru($user);
+
+        $mapelDiizinkan = $this->penugasan->mapelTersedia($user)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
+
+        $validated = $request->validate([
+            'penugasan' => ['present', 'array'],
+            'penugasan.*.mata_pelajaran_id' => [
+                'required',
+                'integer',
+                'exists:mata_pelajaran,id',
+                Rule::in($mapelDiizinkan),
+            ],
+            'penugasan.*.kelas_ids' => ['required', 'array', 'min:1'],
+            'penugasan.*.kelas_ids.*' => ['integer', 'exists:kelas,id'],
+        ], [
+            'penugasan.array' => 'Format penugasan tidak valid.',
+            'penugasan.*.mata_pelajaran_id.required' => 'Mata pelajaran wajib dipilih.',
+            'penugasan.*.mata_pelajaran_id.exists' => 'Mata pelajaran tidak ditemukan.',
+            'penugasan.*.mata_pelajaran_id.in' => 'Mata pelajaran tidak sesuai dengan data guru.',
+            'penugasan.*.kelas_ids.required' => 'Minimal satu kelas wajib dipilih.',
+            'penugasan.*.kelas_ids.min' => 'Minimal satu kelas wajib dipilih.',
+            'penugasan.*.kelas_ids.*.exists' => 'Kelas tidak ditemukan.',
+        ]);
+
+        $grup = collect($validated['penugasan'])
+            ->map(fn (array $item) => [
+                'mata_pelajaran_id' => (int) $item['mata_pelajaran_id'],
+                'kelas_ids' => collect($item['kelas_ids'])
+                    ->map(fn ($id) => (int) $id)
+                    ->unique()
+                    ->values()
+                    ->all(),
+            ])
+            ->values();
+
+        if ($grup->pluck('mata_pelajaran_id')->duplicates()->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'penugasan' => 'Mata pelajaran tidak boleh duplikat dalam satu guru.',
+            ]);
+        }
+
+        DB::transaction(function () use ($grup, $user): void {
+            PenugasanMengajar::query()->where('guru_id', $user->id)->delete();
+
+            foreach ($grup as $item) {
+                foreach ($item['kelas_ids'] as $kelasId) {
+                    PenugasanMengajar::create([
+                        'guru_id' => $user->id,
+                        'mata_pelajaran_id' => $item['mata_pelajaran_id'],
+                        'kelas_id' => $kelasId,
+                    ]);
+                }
+            }
+
+            $user->forceFill(['penugasan_diatur' => true])->save();
+        });
+
+        $user->refresh();
+
+        app(ActivityLogger::class)->record(
+            ActivityLog::TIPE_DATA_GURU,
+            "Memperbarui penugasan mengajar {$user->name}.",
+            $request->user()
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => "Penugasan mengajar {$user->name} berhasil disimpan.",
+            'data' => [
+                'guru' => $this->row($user),
+                'penugasan' => $this->penugasan->ringkasan($user)->values(),
+            ],
+        ]);
+    }
+
     /**
      * Unduh daftar guru yang sedang difilter sebagai file Excel, lengkap
      * dengan password awal supaya bisa langsung diserahkan ke guru.
@@ -208,7 +321,7 @@ class GuruController extends Controller
                 $user->nip,
                 $user->name,
                 $user->email,
-                $user->mata_pelajaran ?? '',
+                $this->labelMapel($user),
                 $user->status,
                 $user->visiblePassword() ?: 'sudah diubah',
                 $user->must_change_password ? 'Belum ubah password' : 'Sudah ubah password',
@@ -236,6 +349,42 @@ class GuruController extends Controller
         return $response;
     }
 
+    protected function penugasanMapelOptions(User $guru): array
+    {
+        return $this->penugasan->mapelTersedia($guru)
+            ->map(fn (MataPelajaran $mapel) => [
+                'id' => (int) $mapel->id,
+                'nama' => (string) $mapel->nama,
+                'kode' => $mapel->kode,
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function penugasanKelasOptions(): array
+    {
+        $kelas = KelasRombel::query()->get(['id', 'jurusan', 'kelas'])->all();
+
+        return collect(KelasRombel::urutkan($kelas))
+            ->map(fn (KelasRombel $item) => [
+                'id' => (int) $item->id,
+                'jurusan' => (string) $item->jurusan,
+                'kelas' => Kelas::normalize((string) $item->kelas),
+                'label' => trim((string) $item->jurusan).' / '.Kelas::normalize((string) $item->kelas),
+            ])
+            ->values()
+            ->all();
+    }
+
+    protected function labelMapel(User $user): string
+    {
+        if ($this->penugasan->sudahDiatur($user)) {
+            return $this->penugasan->mapelDiampu($user)->pluck('nama')->implode(', ');
+        }
+
+        return trim((string) $user->mata_pelajaran);
+    }
+
     /**
      * Pilihan mata pelajaran untuk dropdown formulir, diambil dari Data Mata
      * Pelajaran supaya guru hanya bisa diampu pada mapel yang benar-benar
@@ -259,16 +408,32 @@ class GuruController extends Controller
     /**
      * Bentuk data yang dikirim ke frontend (satu sumber untuk tabel & modal).
      *
-     * @return array{id: int, nip: string|null, nama: string, email: string|null, mapel: string|null, status: string}
+     * @return array{id: int, nip: string|null, nama: string, email: string|null, mapel: string|null, mapel_list: array<int, string>, kelas_diampu: array<int, array{id: int, nama: string, jurusan: string}>, kelas_detail: array<int, array{mata_pelajaran_id: int, nama: string, kode: mixed, kelas: array<int, array{id: int, nama: string, jurusan: string}>}>, status: string}
      */
     protected function row(User $user): array
     {
+        $label = $this->labelMapel($user);
+        $mapelList = collect(explode(',', $label))
+            ->map(fn (string $nama) => trim($nama))
+            ->filter(fn (string $nama) => $nama !== '')
+            ->values()
+            ->all();
+        $kelasDetail = $this->penugasan->detailKelas($user);
+        $kelasDiampu = $kelasDetail
+            ->flatMap(fn (array $grup) => collect($grup['kelas']))
+            ->unique(fn (array $kelas): int => $kelas['id'])
+            ->values()
+            ->all();
+
         return [
             'id' => $user->id,
             'nip' => $user->nip,
             'nama' => $user->name,
             'email' => $user->email,
-            'mapel' => $user->mata_pelajaran,
+            'mapel' => $label !== '' ? $label : null,
+            'mapel_list' => $mapelList,
+            'kelas_diampu' => $kelasDiampu,
+            'kelas_detail' => $kelasDetail->all(),
             'status' => $user->status,
         ];
     }
@@ -304,7 +469,7 @@ class GuruController extends Controller
                 'max:120',
                 Rule::unique('users', 'email')->ignore($user?->id),
             ],
-            'mapel' => ['required', 'string', 'max:120'],
+            'mapel' => ['nullable', 'string', 'max:120'],
             'status' => ['required', Rule::in(self::STATUSES)],
             'password' => [
                 'nullable',
@@ -321,7 +486,6 @@ class GuruController extends Controller
             'email.required' => 'Email wajib diisi.',
             'email.email' => 'Format email tidak valid.',
             'email.unique' => 'Email sudah dipakai akun lain.',
-            'mapel.required' => 'Mata pelajaran wajib diisi.',
             'status.in' => 'Status akun tidak valid.',
             'password.min' => 'Password minimal terdiri dari '.PasswordPolicy::MIN_LENGTH.' karakter.',
             'password.regex' => 'Password harus mengandung huruf besar dan angka.',
@@ -331,7 +495,7 @@ class GuruController extends Controller
             'nama' => trim($validated['nama']),
             'nis' => trim($validated['nis']),
             'email' => mb_strtolower(trim($validated['email'])),
-            'mapel' => trim($validated['mapel']),
+            'mapel' => trim((string) ($validated['mapel'] ?? '')),
             'status' => $validated['status'],
             'password' => $validated['password'] ?? null,
         ];
@@ -358,8 +522,12 @@ class GuruController extends Controller
             return false;
         }
 
-        if ($mapel !== '' && $user->mata_pelajaran !== $mapel) {
-            return false;
+        if ($mapel !== '') {
+            $mapelGuru = array_map('trim', explode(',', $this->labelMapel($user)));
+
+            if (! in_array($mapel, $mapelGuru, true)) {
+                return false;
+            }
         }
 
         if ($q !== '') {

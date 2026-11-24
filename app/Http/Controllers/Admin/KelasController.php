@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Jurusan;
 use App\Models\KelasRombel;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -66,6 +67,8 @@ class KelasController extends Controller
             'kelasData' => [
                 'kelas' => $rows,
                 'jurusan' => $jurusan,
+                // Dipakai dropdown Jurusan di form Tambah/Ubah Kelas.
+                'jurusan_opsi' => Jurusan::opsiForm()->all(),
                 'tingkat' => $this->pilihanTingkat($rows),
                 'wali' => User::query()
                     ->where('role', 'guru')
@@ -370,8 +373,14 @@ class KelasController extends Controller
             $request->merge(['kelas' => Kelas::normalize((string) $request->input('kelas'))]);
         }
 
+        // Form mengirim ID jurusan, sedangkan kolom kelas.jurusan menyimpan nama.
+        $idJurusan = $request->input('jurusan');
+        $namaJurusan = is_numeric($idJurusan)
+            ? Jurusan::namaDariId((int) $idJurusan)
+            : null;
+
         $validated = $request->validate([
-            'jurusan' => ['required', 'string', 'max:120'],
+            'jurusan' => ['required', 'integer', Rule::exists('jurusan', 'id')],
             'kelas' => [
                 'required',
                 'string',
@@ -380,7 +389,7 @@ class KelasController extends Controller
                 // Kombinasi jurusan + kelas harus unik: kelas yang sama boleh
                 // dipakai di jurusan lain, jadi jurusannya ikut diperiksa.
                 Rule::unique('kelas', 'kelas')
-                    ->where(fn ($query) => $query->where('jurusan', $request->input('jurusan')))
+                    ->where(fn ($query) => $query->where('jurusan', $namaJurusan))
                     ->ignore($kelas?->id),
             ],
             // Wali kelas harus benar-benar akun guru, supaya kolom ini tidak
@@ -391,14 +400,15 @@ class KelasController extends Controller
                 Rule::exists('users', 'id')->where(fn ($query) => $query->where('role', 'guru')),
             ],
         ], [
-            'jurusan.required' => 'Jurusan wajib diisi.',
-            'jurusan.max' => 'Nama jurusan maksimal 120 karakter.',
+            'jurusan.required' => 'Jurusan wajib dipilih.',
+            'jurusan.integer' => 'Jurusan yang dipilih tidak valid.',
+            'jurusan.exists' => 'Jurusan yang dipilih tidak terdaftar.',
             'kelas.required' => 'Kelas wajib diisi.',
             'kelas.regex' => Kelas::formatMessage(),
             'kelas.unique' => 'Kelas ini sudah terdaftar di jurusan tersebut.',
             'wali_kelas_id.exists' => 'Wali kelas yang dipilih tidak valid.',
         ]);
 
-        return $validated;
+        return array_merge($validated, ['jurusan' => $namaJurusan ?? '']);
     }
 }

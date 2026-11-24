@@ -45,7 +45,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-2">
                         <button type="button" id="kelas-add"
-                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-xs font-medium text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none sm:text-sm">
+                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-sm font-semibold text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none">
                             <x-lucide-plus class="h-4 w-4" />
                             Tambah Kelas
                         </button>
@@ -265,15 +265,29 @@
                     <label for="km-jurusan" class="{{ $kLabel }}">Jurusan</label>
                     <div class="relative">
                         <x-lucide-graduation-cap class="{{ $kIcon }}" />
-                        <input type="text" id="km-jurusan" name="jurusan" required maxlength="120" list="km-daftar-jurusan"
-                            class="{{ $kField }} placeholder:text-slate-400" placeholder="Contoh: Rekayasa Perangkat Lunak">
+                        @if (empty($kelasData['jurusan_opsi']))
+                            <select id="km-jurusan" name="jurusan" required disabled
+                                class="{{ $kField }} appearance-none pr-10 text-slate-800">
+                                <option value="">Data jurusan belum tersedia</option>
+                            </select>
+                        @else
+                            <select id="km-jurusan" name="jurusan" required
+                                class="{{ $kField }} appearance-none pr-10 text-slate-800">
+                                <option value="">Pilih jurusan</option>
+                                @foreach ($kelasData['jurusan_opsi'] as $opsi)
+                                    <option value="{{ $opsi['id'] }}">{{ $opsi['nama'] }}</option>
+                                @endforeach
+                            </select>
+                        @endif
+                        <x-lucide-chevron-down class="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-primary-60" />
                     </div>
-                    <datalist id="km-daftar-jurusan">
-                        @foreach ($kelasData['jurusan'] as $opsiJurusan)
-                            <option value="{{ $opsiJurusan }}"></option>
-                        @endforeach
-                    </datalist>
-                    <p class="mt-1 text-xs text-slate-500">Pilih dari daftar atau tulis jurusan baru.</p>
+                    <p class="mt-1 text-xs text-slate-500">
+                        @if (empty($kelasData['jurusan_opsi']))
+                            Belum ada jurusan terdaftar. Tambahkan jurusan di Data Jurusan terlebih dahulu.
+                        @else
+                            Pilih jurusan yang sudah terdaftar.
+                        @endif
+                    </p>
                 </div>
 
                 {{-- Wali kelas --}}
@@ -553,6 +567,9 @@
             to { opacity: 1; transform: none; }
         }
 
+        /* Panah bawaan select disembunyikan (diganti ikon chevron) */
+        #kelas-form #km-jurusan { background-image: none; }
+
         /* ===== Baris tabel: muncul bertahap, bisa ber FLASH setelah disimpan ===== */
         .kelas-row { animation: kelasRowIn .38s cubic-bezier(.22, 1, .36, 1) backwards; }
 
@@ -665,6 +682,9 @@
         (function () {
             // ===== Data dari PHP =====
             const data = @json($kelasData);
+            const jurusanOpsi = data.jurusan_opsi || [];
+            const idJurusanDariNama = (nama) => jurusanOpsi.find((o) => o.nama === nama)?.id ?? '';
+            const namaJurusanDariId = (id) => jurusanOpsi.find((o) => String(o.id) === String(id))?.nama ?? '';
             const kelasContoh = data.kelas_contoh || '12';
             const kelasContohRombel = data.kelas_contoh_rombel || '12-1';
                 // Pola yang sama dengan validasi server, dikirim dari PHP supaya tidak berbeda antar sisi.
@@ -770,11 +790,11 @@
 
                 return `
                     <div class="inline-flex items-center gap-2">
-                        <button type="button" data-action="edit" data-id="${k.id}" aria-label="Ubah ${esc(labelKelas(k))}"
+                        <button type="button" data-action="edit" data-id="${k.id}" aria-label="Ubah ${esc(labelKelas(k))}" title="Ubah ${esc(labelKelas(k))}"
                             class="kelas-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_EDIT}</button>
                         <button type="button" data-action="delete" data-id="${k.id}" aria-label="Hapus ${esc(labelKelas(k))}"
-                            ${kunci ? 'disabled title="Kelas ini masih punya siswa, jadi belum bisa dihapus."' : ''}
-                            class="kelas-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-red-50 hover:text-red-500 active:scale-90">${ICON_DEL}</button>
+                            ${kunci ? `disabled title="Hapus ${esc(labelKelas(k))} - Kelas ini masih punya siswa, jadi belum bisa dihapus."` : `title="Hapus ${esc(labelKelas(k))}"`}
+                            class="kelas-act flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-white text-red-500 transition hover:bg-red-50 active:scale-90">${ICON_DEL}</button>
                     </div>`;
             };
 
@@ -1172,7 +1192,7 @@
                     subtitleEl.textContent = `Perbarui kelas ${k.kelas} ${k.jurusan}`;
 
                     f.kelas.value   = k.kelas ?? '';
-                    f.jurusan.value = k.jurusan ?? '';
+                    f.jurusan.value = idJurusanDariNama(k.jurusan ?? '');
                     f.wali.value    = k.wali_kelas_id ?? '';
                 } else {
                     titleEl.textContent    = 'Tambah Kelas';
@@ -1192,13 +1212,13 @@
                         + 'jadi nama kelas dan jurusannya tidak bisa diubah. Wali kelas masih bisa diganti.';
                     f.kelas.readOnly = true;
                     f.kelas.classList.add('bg-slate-100', 'text-slate-500');
-                    f.jurusan.readOnly = true;
+                    f.jurusan.disabled = true;
                     f.jurusan.classList.add('bg-slate-100', 'text-slate-500');
                 } else {
                     terpakaiTx.textContent = '';
                     f.kelas.readOnly = false;
                     f.kelas.classList.remove('bg-slate-100', 'text-slate-500');
-                    f.jurusan.readOnly = false;
+                    f.jurusan.disabled = false;
                     f.jurusan.classList.remove('bg-slate-100', 'text-slate-500');
                 }
 
@@ -1432,11 +1452,12 @@
                 const k     = isAdd ? null : rows.find((r) => r.id === editingId);
                 if (!isAdd && !k) return;
 
-                const kelas   = f.kelas.value.trim().replace(/\s*-\s*/g, '-');
-                const jurusan = f.jurusan.value.trim();
-                const wali    = f.wali.value;
+                const kelas       = f.kelas.value.trim().replace(/\s*-\s*/g, '-');
+                const jurusan     = f.jurusan.value.trim();
+                const namaJurusan = namaJurusanDariId(jurusan);
+                const wali        = f.wali.value;
 
-                const missing = !kelas ? f.kelas : !jurusan ? f.jurusan : null;
+                const missing = !kelas ? f.kelas : !jurusan || !namaJurusan ? f.jurusan : null;
                 if (missing) {
                     showError('Kelas dan jurusan wajib diisi.');
                     missing.focus();
@@ -1453,11 +1474,11 @@
                 const selfId = isAdd ? null : editingId;
 
                 const dup = rows.find((r) => String(r.id) !== String(selfId)
-                    && r.jurusan === jurusan
+                    && r.jurusan === namaJurusan
                     && r.kelas === kelas);
 
                 if (dup) {
-                    showError(`Kelas ${kelas} sudah terdaftar di jurusan ${jurusan}.`);
+                    showError(`Kelas ${kelas} sudah terdaftar di jurusan ${namaJurusan}.`);
                     f.kelas.focus();
                     return;
                 }
@@ -1466,7 +1487,7 @@
                 pendingSave = { payload: { kelas, jurusan, wali_kelas_id: wali === '' ? null : wali } };
 
                 openConfirm(isAdd
-                    ? { title: 'Yakin ingin menambahkan kelas?', text: `Kelas ${kelas} akan ditambahkan ke ${jurusan}.` }
+                    ? { title: 'Yakin ingin menambahkan kelas?', text: `Kelas ${kelas} akan ditambahkan ke ${namaJurusan}.` }
                     : { title: 'Yakin ingin menyimpan perubahan?', text: `Perubahan kelas ${labelKelas(k)} akan disimpan.` });
             });
 

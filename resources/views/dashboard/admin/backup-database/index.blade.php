@@ -410,7 +410,7 @@
                     : pill('bg-red-100 text-red-600', 'File Hilang');
 
                 const actions = (b) => `
-                    <div class="flex items-center justify-end gap-1.5">
+                    <div class="inline-flex items-center justify-end gap-2">
                         <a href="${esc(urlDownload(b.id))}" ${b.ada_file ? '' : 'aria-disabled="true" tabindex="-1"'}
                            data-action="download" data-id="${b.id}"
                            class="backup-btn inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-primary-70 transition hover:bg-blue-50 ${b.ada_file ? '' : 'pointer-events-none opacity-45'}"
@@ -419,10 +419,9 @@
                             Unduh
                         </a>
                         <button type="button" data-action="delete" data-id="${b.id}"
-                            class="backup-btn inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                            title="Hapus file backup ini">
+                            class="backup-btn inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-white text-red-500 transition hover:bg-red-50 active:scale-90"
+                            aria-label="Hapus ${esc(b.nama)}" title="Hapus ${esc(b.nama)}">
                             ${ICON_TRASH}
-                            Hapus
                         </button>
                     </div>`;
 

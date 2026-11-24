@@ -40,7 +40,7 @@ class GlobalSearchService
             'guru' => [
                 ['label' => 'Dashboard Guru', 'url' => route('dashboard.guru.index'), 'group' => 'Menu', 'icon' => 'layout-dashboard'],
                 ['label' => 'Data Siswa', 'url' => route('dashboard.guru.data-siswa.index'), 'group' => 'Menu', 'icon' => 'users'],
-                ['label' => 'Mata Pelajaran', 'url' => route('dashboard.guru.mata-pelajaran.index'), 'group' => 'Menu', 'icon' => 'book-open'],
+
                 ['label' => 'Input Nilai', 'url' => route('dashboard.guru.input-nilai.index'), 'group' => 'Menu', 'icon' => 'square-pen'],
                 ['label' => 'Rekap Nilai', 'url' => route('dashboard.guru.rekap-nilai.index'), 'group' => 'Menu', 'icon' => 'file-text'],
                 ['label' => 'Laporan', 'url' => route('dashboard.guru.laporan.index'), 'group' => 'Menu', 'icon' => 'bar-chart-3'],
@@ -284,27 +284,27 @@ class GlobalSearchService
                 ];
             });
 
-        // Mata Pelajaran (khususnya yang diampu atau terkait)
-        $namaMapelGuru = trim((string) $user->mata_pelajaran);
-        MataPelajaran::query()
-            ->where(function (Builder $b) use ($q) {
-                $b->whereRaw('LOWER(nama) LIKE ?', ["%{$q}%"])
-                    ->orWhereRaw('LOWER(kode) LIKE ?', ["%{$q}%"]);
-            })
-            ->limit(4)
-            ->get()
-            ->each(function (MataPelajaran $m) use (&$results, $namaMapelGuru) {
-                $diampu = $namaMapelGuru !== '' && strcasecmp($namaMapelGuru, trim($m->nama)) === 0;
-                $group = $diampu ? 'Mapel Diampu' : 'Mata Pelajaran';
-                $prefix = $diampu ? 'Mapel Diampu: ' : 'Mapel: ';
-                $kode = $m->kode ? " ({$m->kode})" : '';
-                $results[] = [
-                    'label' => $prefix.$m->nama.$kode,
-                    'url' => route('dashboard.guru.mata-pelajaran.index').'?q='.urlencode($m->nama),
-                    'group' => $group,
-                    'icon' => 'book-open',
-                ];
-            });
+        // Mata pelajaran yang diampu guru login
+        $mapelDiampuIds = app(PenugasanMengajarService::class)->mapelDiampu($user)->pluck('id');
+        if ($mapelDiampuIds->isNotEmpty()) {
+            MataPelajaran::query()
+                ->whereIn('id', $mapelDiampuIds)
+                ->where(function (Builder $b) use ($q) {
+                    $b->whereRaw('LOWER(nama) LIKE ?', ["%{$q}%"])
+                        ->orWhereRaw('LOWER(kode) LIKE ?', ["%{$q}%"]);
+                })
+                ->limit(4)
+                ->get()
+                ->each(function (MataPelajaran $m) use (&$results) {
+                    $kode = $m->kode ? " ({$m->kode})" : '';
+                    $results[] = [
+                        'label' => 'Mapel Diampu: '.$m->nama.$kode,
+                        'url' => route('dashboard.guru.input-nilai.index', ['mapel_id' => $m->id]),
+                        'group' => 'Mapel Diampu',
+                        'icon' => 'book-open',
+                    ];
+                });
+        }
 
         // Tugas yang dibuat guru ini
         Tugas::query()
@@ -341,7 +341,7 @@ class GlobalSearchService
                 $mapel = $m->mataPelajaran ? " ({$m->mataPelajaran->nama})" : '';
                 $results[] = [
                     'label' => "Materi: {$m->judul}{$mapel}",
-                    'url' => route('dashboard.guru.mata-pelajaran.index').'?q='.urlencode($m->judul),
+                    'url' => route('dashboard.guru.tugas-materi.index', ['q' => $m->judul]),
                     'group' => 'Materi',
                     'icon' => 'book-marked',
                 ];

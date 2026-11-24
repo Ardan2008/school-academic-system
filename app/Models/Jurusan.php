@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Collection;
 
 /**
  * Master Data Jurusan.
@@ -38,5 +39,29 @@ class Jurusan extends Model
                 ? $jurusan->status
                 : 'aktif';
         });
+    }
+
+    /**
+     * Pilihan jurusan untuk dropdown form siswa dan kelas.
+     *
+     * @return Collection<int, array{id: int, nama: string}>
+     */
+    public static function opsiForm(): Collection
+    {
+        return static::query()
+            ->orderBy('nama')
+            ->get(['id', 'nama'])
+            ->map(fn (self $jurusan): array => [
+                'id' => (int) $jurusan->id,
+                'nama' => (string) $jurusan->nama,
+            ])
+            ->values();
+    }
+
+    public static function namaDariId(int $id): ?string
+    {
+        $nama = static::query()->whereKey($id)->value('nama');
+
+        return $nama === null ? null : (string) $nama;
     }
 }

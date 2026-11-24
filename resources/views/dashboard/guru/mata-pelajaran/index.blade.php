@@ -1,10 +1,12 @@
 @extends('layouts.dashboard')
 
-@section('title', 'Mata Pelajaran')
+@section('title', 'Mata Pelajaran Saya')
 @section('subtitle', 'Dashboard Guru')
 
 @section('content')
-    <div id="mapel-page">
+    <x-dashboard.animations />
+
+    <div id="mapel-page" data-dashboard>
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             @foreach ($stats as $stat)
@@ -28,64 +30,17 @@
             @endforeach
         </div>
 
-        @if ($mapelSaya)
-            <div data-reveal style="--d: .25s" class="mt-5 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-white to-indigo-50/50 p-4 shadow-sm sm:mt-6 sm:p-5">
-                <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div class="flex flex-1 items-start gap-3.5 min-w-0">
-                        <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-60 text-white shadow-md shadow-blue-500/20">
-                            <x-lucide-book-open class="h-5.5 w-5.5" />
-                        </span>
-                        <div class="min-w-0 flex-1">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h3 class="text-base font-bold text-slate-900 sm:text-lg">
-                                    {{ $mapelSaya['nama'] }}
-                                </h3>
-                                @if (!empty($mapelSaya['kode']))
-                                    <span class="inline-flex items-center rounded-md bg-blue-100 px-2 py-0.5 font-mono text-xs font-semibold text-primary-70">
-                                        {{ $mapelSaya['kode'] }}
-                                    </span>
-                                @endif
-                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">
-                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                                    Mata Pelajaran Anda
-                                </span>
-                            </div>
-                            <p class="mt-1 text-xs text-slate-500 sm:text-sm">
-                                Anda tercatat sebagai guru pengampu mata pelajaran ini.
-                                @if ($mapelSaya['total_nilai'] > 0)
-                                    Terdapat <strong class="text-slate-700">{{ $mapelSaya['total_nilai'] }} catatan nilai</strong> dari <strong class="text-slate-700">{{ $mapelSaya['total_siswa'] }} siswa</strong>.
-                                @else
-                                    Belum ada catatan nilai yang tersimpan untuk periode aktif.
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="flex shrink-0 items-center gap-2.5 self-start sm:self-center sm:ml-auto">
-                        <button type="button" id="btn-fokus-mapel-saya"
-                            class="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-blue-200 bg-white px-3.5 text-xs font-medium text-primary-60 transition hover:bg-blue-50 active:scale-[.98]">
-                            <x-lucide-filter class="h-3.5 w-3.5" />
-                            Saring Mapel Saya
-                        </button>
-                        <a href="{{ route('dashboard.guru.input-nilai.index') }}"
-                            class="inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-primary-60 px-3.5 text-xs font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-primary-70 active:scale-[.98]">
-                            <x-lucide-square-pen class="h-3.5 w-3.5" />
-                            Input Nilai Siswa
-                        </a>
-                    </div>
+        <div data-reveal style="--d: .25s" class="mt-5 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50/80 via-white to-indigo-50/50 p-4 shadow-sm sm:mt-6 sm:p-5">
+            <div class="flex items-start gap-3.5 min-w-0">
+                <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-60 text-white shadow-md shadow-blue-500/20">
+                    <x-lucide-book-open class="h-5.5 w-5.5" />
+                </span>
+                <div class="min-w-0 flex-1">
+                    <h3 class="text-base font-bold text-slate-900 sm:text-lg">Mata Pelajaran Saya</h3>
+                    <p class="mt-1 text-xs text-slate-500 sm:text-sm">Daftar mata pelajaran yang menjadi tanggung jawab Anda sebagai Guru pengampu.</p>
                 </div>
             </div>
-        @else
-            <div data-reveal style="--d: .25s" class="mt-5 rounded-2xl border border-amber-200/70 bg-amber-50/60 p-4 shadow-sm sm:mt-6 sm:p-5">
-                <div class="flex items-start gap-3">
-                    <x-lucide-alert-circle class="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-                    <div>
-                        <h3 class="text-sm font-semibold text-amber-900">Mata Pelajaran Belum Ditugaskan</h3>
-                        <p class="mt-0.5 text-xs text-amber-700">Akun Anda belum memiliki mata pelajaran spesifik yang ditetapkan oleh administrator sekolah. Anda tetap dapat melihat seluruh daftar mata pelajaran sekolah di bawah.</p>
-                    </div>
-                </div>
-            </div>
-        @endif
+        </div>
 
         <div data-reveal style="--d: .32s" class="mt-5 rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60 sm:mt-6">
 
@@ -159,13 +114,12 @@
 
                             <div class="space-y-3">
                                 <div>
-                                    <label for="mapel-filter-status" class="{{ $filterLabel }}">Kategori Status</label>
+                                    <label for="mapel-filter-status" class="{{ $filterLabel }}">Status</label>
                                     <div class="relative">
                                         <select id="mapel-filter-status" data-filter-status class="{{ $filterSelect }}">
                                             <option value="">Semua Mata Pelajaran</option>
-                                            <option value="diampu_saya">Mata Pelajaran Saya</option>
-                                            <option value="dipakai">Mapel Aktif (Ada Pengampu)</option>
-                                            <option value="kosong">Mapel Belum Ada Pengampu</option>
+                                            <option value="aktif">Mapel Aktif</option>
+                                            <option value="nonaktif">Mapel Nonaktif</option>
                                         </select>
                                         <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
                                     </div>
@@ -198,10 +152,10 @@
                             <th class="w-14 px-4 py-4 text-center font-medium">No</th>
                             <th class="w-28 px-4 py-4 font-medium">Kode</th>
                             <th class="px-4 py-4 font-medium">Mata Pelajaran</th>
-                            <th class="px-4 py-4 font-medium">Guru Pengampu</th>
-                            <th class="w-36 px-4 py-4 font-medium">Status</th>
-                            <th class="w-36 px-4 py-4 font-medium">Nilai Siswa</th>
-                            <th class="w-24 px-4 py-4 text-center font-medium">Aksi</th>
+                            <th class="w-32 px-4 py-4 font-medium">Status</th>
+                            <th class="w-32 px-4 py-4 font-medium">Siswa</th>
+                            <th class="w-36 px-4 py-4 font-medium">Catatan Nilai</th>
+                            <th class="w-28 px-4 py-4 text-center font-medium">Aksi</th>
                         </tr>
                     </thead>
                     <tbody data-table-body class="divide-y divide-slate-100 text-slate-800"></tbody>
@@ -214,8 +168,8 @@
                 <div class="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400">
                     <x-lucide-book-x class="h-6 w-6" />
                 </div>
-                <h4 class="mt-3 text-sm font-semibold text-slate-700">Tidak ada mata pelajaran yang cocok</h4>
-                <p class="mt-1 text-xs text-slate-400">Coba ubah kata kunci pencarian atau sesuaikan opsi filter Anda.</p>
+                <h4 id="mapel-empty-title" class="mt-3 text-sm font-semibold text-slate-700">Tidak ada mata pelajaran yang cocok</h4>
+                <p id="mapel-empty-desc" class="mt-1 text-xs text-slate-400">Coba ubah kata kunci pencarian atau sesuaikan opsi filter Anda.</p>
                 <button type="button" id="btn-empty-reset" class="mt-3 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-primary-60 hover:bg-slate-50">
                     <x-lucide-rotate-ccw class="h-3 w-3" />
                     Reset Pencarian & Filter
@@ -232,7 +186,7 @@
         data-open="false"
         aria-hidden="true"
         inert
-        class="km fixed inset-0 z-60 flex items-end justify-center overflow-y-auto overscroll-contain bg-[#0F3D73]/60 p-0 sm:items-center sm:p-4 lg:left-64"
+        class="km fixed inset-0 z-60 flex items-end justify-center overflow-y-auto overscroll-contain bg-slate-900/50 p-0 backdrop-blur-sm sm:items-center sm:p-4 lg:left-64"
         role="dialog"
         aria-modal="true"
         aria-labelledby="detail-modal-title"
@@ -241,12 +195,12 @@
 
         <div
             data-modal-panel
-            class="km-panel relative z-10 flex max-h-[92dvh] w-full max-w-xl flex-col rounded-t-3xl bg-[#FAFAFA] shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl"
+            class="km-panel relative z-10 flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-t-3xl bg-[#FAFAFA] shadow-2xl ring-1 ring-slate-200/70 sm:max-h-[88dvh] sm:rounded-3xl"
         >
             <header class="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 bg-white px-6 pb-4 pt-6 sm:px-8 sm:pt-7">
                 <div class="min-w-0 flex-1">
                     <div class="flex items-center gap-2">
-                        <span id="dm-kode-badge" class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-700"></span>
+                        <span id="dm-kode-badge" class="inline-flex rounded-lg bg-slate-100 px-2 py-0.5 font-mono text-xs font-bold text-slate-700"></span>
                         <span id="dm-status-badge" class="inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium"></span>
                     </div>
                     <h3 id="detail-modal-title" class="mt-1 text-xl font-bold text-slate-900 sm:text-2xl"></h3>
@@ -256,9 +210,9 @@
                     type="button"
                     data-modal-close
                     aria-label="Tutup"
-                    class="km-close -mr-2 -mt-1 shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-90"
+                    class="km-close -mr-2 -mt-1 shrink-0 rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60"
                 >
-                    <x-lucide-x class="h-6 w-6" />
+                    <x-lucide-x class="h-5 w-5" />
                 </button>
             </header>
 
@@ -273,23 +227,23 @@
                     <p class="mt-1 pl-6.5 text-[11px] text-emerald-700">Anda dapat langsung melakukan entri penilaian siswa untuk mata pelajaran ini melalui menu Input Nilai.</p>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
-                        <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Total Nilai</p>
-                        <p id="dm-total-nilai" class="mt-1 text-xl font-bold text-slate-900 tabular-nums">0</p>
-                        <p class="text-[10px] text-slate-400">Nilai tersimpan</p>
+                    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                        <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
+                            <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Total Nilai</p>
+                            <p id="dm-total-nilai" class="mt-1 text-xl font-bold text-slate-900 tabular-nums">0</p>
+                            <p class="text-[10px] text-slate-400">Nilai tersimpan</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
+                            <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Rata-Rata</p>
+                            <p id="dm-rata-nilai" class="mt-1 text-xl font-bold text-primary-60 tabular-nums">-</p>
+                            <p class="text-[10px] text-slate-400">Rata-rata siswa</p>
+                        </div>
+                        <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs col-span-2 sm:col-span-1">
+                            <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Siswa Relevan</p>
+                            <p id="dm-total-siswa" class="mt-1 text-xl font-bold text-slate-900 tabular-nums">0</p>
+                            <p class="text-[10px] text-slate-400">Siswa dalam cakupan</p>
+                        </div>
                     </div>
-                    <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs">
-                        <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Rata-Rata</p>
-                        <p id="dm-rata-nilai" class="mt-1 text-xl font-bold text-primary-60 tabular-nums">-</p>
-                        <p class="text-[10px] text-slate-400">Rata-rata siswa</p>
-                    </div>
-                    <div class="rounded-xl border border-slate-200/80 bg-white p-3.5 shadow-xs col-span-2 sm:col-span-1">
-                        <p class="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Siswa Dinilai</p>
-                        <p id="dm-total-siswa" class="mt-1 text-xl font-bold text-slate-900 tabular-nums">0</p>
-                        <p class="text-[10px] text-slate-400">Total siswa</p>
-                    </div>
-                </div>
 
                 <div>
                     <div class="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -306,22 +260,14 @@
                 </div>
             </div>
 
-            <footer class="flex shrink-0 items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/80 px-6 py-3.5 sm:px-8">
+            <footer id="dm-footer" class="flex shrink-0 items-center justify-end gap-2.5 border-t border-slate-100 bg-slate-50/90 px-6 py-4 sm:px-8 sm:py-4" data-base-input-nilai="{{ route('dashboard.guru.input-nilai.index') }}">
                 <button
                     type="button"
                     data-modal-close
-                    class="inline-flex h-9 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-xs font-medium text-slate-700 transition hover:bg-slate-50 active:scale-[.98]"
+                    class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60"
                 >
                     Tutup
                 </button>
-                <a
-                    id="dm-link-input-nilai"
-                    href="{{ route('dashboard.guru.input-nilai.index') }}"
-                    class="hidden inline-flex h-9 items-center justify-center gap-1.5 rounded-lg bg-primary-60 px-4 text-xs font-semibold text-white transition hover:bg-primary-70 active:scale-[.98]"
-                >
-                    <x-lucide-square-pen class="h-3.5 w-3.5" />
-                    Input Nilai Sekarang
-                </a>
             </footer>
         </div>
     </div>
@@ -413,7 +359,7 @@
         .km {
             opacity: 0;
             pointer-events: none;
-            transition: opacity .25s ease;
+            transition: opacity .3s ease;
         }
 
         .km[data-open="true"] {
@@ -423,7 +369,7 @@
 
         .km-backdrop {
             opacity: 0;
-            transition: opacity .25s ease;
+            transition: opacity .3s ease;
         }
 
         .km[data-open="true"] .km-backdrop { opacity: 1; }
@@ -432,8 +378,8 @@
             opacity: 0;
             transform: translateY(28px) scale(.97);
             transition:
-                opacity .32s cubic-bezier(.22, 1, .36, 1),
-                transform .32s cubic-bezier(.22, 1, .36, 1);
+                opacity .3s cubic-bezier(.22, 1, .36, 1),
+                transform .3s cubic-bezier(.22, 1, .36, 1);
         }
 
         .km[data-open="true"] .km-panel {
@@ -445,26 +391,9 @@
         .km-close:hover { transform: scale(1.06); }
         .km-close:active { transform: scale(.94); }
 
-        /* Scroll reveal */
-        #mapel-page.reveal-ready [data-reveal] {
-            opacity: 0;
-            transform: translateY(14px);
-            filter: blur(2px);
-            transition:
-                opacity .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0s),
-                transform .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0s),
-                filter .6s cubic-bezier(.22, 1, .36, 1) var(--d, 0s);
-            will-change: opacity, transform;
-        }
-
-        #mapel-page.reveal-ready [data-reveal].is-visible {
-            opacity: 1;
-            transform: none;
-            filter: none;
-        }
-
-        @media (max-width: 639px) {
-            #mapel-page [data-reveal]:not(.mt-5) { --d: 0s !important; }
+        @media (prefers-reduced-motion: reduce) {
+            .km, .km-backdrop, .km-panel, .km-close { transition: none; }
+            .km-panel { transform: none; }
         }
     </style>
 @endpush
@@ -488,8 +417,9 @@
             const statusEl  = $('#mapel-filter-status');
             const summaryEl = $('[data-filter-summary]');
             const badgeEl   = $('[data-filter-badge]');
-            const btnFokusSaya = $('#btn-fokus-mapel-saya');
             const btnEmptyReset = $('#btn-empty-reset');
+            const emptyTitle = document.getElementById('mapel-empty-title');
+            const emptyDesc = document.getElementById('mapel-empty-desc');
 
             const pag       = $('[data-pagination]');
             const info      = pag.querySelector('[data-info]');
@@ -516,7 +446,8 @@
             const dmPengampuList = document.getElementById('dm-pengampu-list');
             const dmPengampuEmpty= document.getElementById('dm-pengampu-empty');
             const dmPengampuCount= document.getElementById('dm-pengampu-count');
-            const dmLinkInputNilai= document.getElementById('dm-link-input-nilai');
+            const dmFooter = document.getElementById('dm-footer');
+            const baseInputNilai = dmFooter?.dataset.baseInputNilai || '';
 
             const perPage = 10;
             const state = {
@@ -536,9 +467,8 @@
             function getFilteredItems() {
                 const q = state.q.trim().toLowerCase();
                 return allItems.filter(item => {
-                    if (state.status === 'diampu_saya' && !item.diampu_saya) return false;
-                    if (state.status === 'dipakai' && !item.dipakai) return false;
-                    if (state.status === 'kosong' && item.dipakai) return false;
+                    if (state.status === 'aktif' && !item.aktif) return false;
+                    if (state.status === 'nonaktif' && item.aktif) return false;
 
                     if (q !== '') {
                         const nama = (item.nama || '').toLowerCase();
@@ -557,33 +487,9 @@
                     ? `<span class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-xs font-semibold text-slate-700">${esc(m.kode)}</span>`
                     : `<span class="text-xs text-slate-300">—</span>`;
 
-                const namaBadge = m.diampu_saya
-                    ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                           <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Diampu Anda
-                       </span>`
-                    : '';
-
-                let pengampuHtml = '';
-                if (m.pengampu_list && m.pengampu_list.length > 0) {
-                    const first = m.pengampu_list[0];
-                    const count = m.pengampu_list.length;
-                    pengampuHtml = `
-                        <div class="flex items-center gap-2">
-                            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-[11px] font-bold text-primary-70">
-                                ${esc(first.name.charAt(0))}
-                            </span>
-                            <span class="truncate max-w-[160px] text-xs font-medium text-slate-700" title="${esc(first.name)}">
-                                ${esc(first.name)}
-                            </span>
-                            ${count > 1 ? `<span class="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500 font-medium">+${count - 1}</span>` : ''}
-                        </div>`;
-                } else {
-                    pengampuHtml = `<span class="text-xs text-slate-400 italic">Belum ada pengampu</span>`;
-                }
-
-                const statusBadge = m.dipakai
-                    ? `<span class="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-medium text-primary-70">Aktif</span>`
-                    : `<span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">Belum Ada Pengampu</span>`;
+                const statusBadge = m.aktif
+                    ? `<span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700">Aktif</span>`
+                    : `<span class="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-500">Nonaktif</span>`;
 
                 const nilaiHtml = m.total_nilai > 0
                     ? `<div class="text-xs">
@@ -593,17 +499,19 @@
                     : `<span class="text-xs text-slate-400">—</span>`;
 
                 return `
-                    <tr class="transition hover:bg-blue-50/40 ${m.diampu_saya ? 'bg-emerald-50/20' : ''}">
+                    <tr class="transition hover:bg-blue-50/40">
                         <td class="px-4 py-3.5 text-center text-xs text-slate-500">${no}</td>
                         <td class="px-4 py-3.5">${kodeBadge}</td>
                         <td class="px-4 py-3.5">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="font-medium text-slate-900">${esc(m.nama)}</span>
-                                ${namaBadge}
+                                <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                                    <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span> Diampu Anda
+                                </span>
                             </div>
                         </td>
-                        <td class="px-4 py-3.5">${pengampuHtml}</td>
                         <td class="px-4 py-3.5">${statusBadge}</td>
+                        <td class="px-4 py-3.5 text-xs text-slate-700">${(m.total_siswa_relevan || 0).toLocaleString('id-ID')} siswa</td>
                         <td class="px-4 py-3.5">${nilaiHtml}</td>
                         <td class="px-4 py-3.5 text-center">
                             <button type="button" data-detail-id="${m.id}" aria-label="Lihat detail ${esc(m.nama)}"
@@ -624,26 +532,18 @@
                     ? `<span class="inline-flex rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-slate-700">${esc(m.kode)}</span>`
                     : '';
 
-                const namaBadge = m.diampu_saya
-                    ? `<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Diampu Anda</span>`
-                    : '';
-
-                const statusBadge = m.dipakai
-                    ? `<span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-primary-70">Aktif</span>`
-                    : `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">Kosong</span>`;
-
-                const guruNama = m.pengampu_list && m.pengampu_list.length > 0
-                    ? m.pengampu_list.map(g => g.name).join(', ')
-                    : 'Belum ada pengampu';
+                const statusBadge = m.aktif
+                    ? `<span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">Aktif</span>`
+                    : `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">Nonaktif</span>`;
 
                 return `
-                    <div class="py-4 space-y-2.5 ${m.diampu_saya ? 'bg-emerald-50/15 -mx-4 px-4' : ''}">
+                    <div class="py-4 space-y-2.5">
                         <div class="flex items-start justify-between gap-2">
                             <div class="min-w-0">
                                 <div class="flex items-center gap-1.5">
                                     <span class="text-xs font-bold text-slate-400">#${no}</span>
                                     ${kodeBadge}
-                                    ${namaBadge}
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">Diampu Anda</span>
                                 </div>
                                 <h4 class="mt-1 text-sm font-bold text-slate-900">${esc(m.nama)}</h4>
                             </div>
@@ -652,11 +552,11 @@
 
                         <div class="flex items-center justify-between text-xs text-slate-500 pt-1">
                             <div class="min-w-0 pr-2">
-                                <span class="text-[11px] text-slate-400">Guru: </span>
-                                <span class="font-medium text-slate-700 truncate" title="${esc(guruNama)}">${esc(guruNama)}</span>
+                                <span class="block">Siswa: <span class="font-medium text-slate-700">${(m.total_siswa_relevan || 0).toLocaleString('id-ID')}</span></span>
+                                <span class="block mt-0.5">Nilai: <span class="font-medium text-slate-700">${m.total_nilai > 0 ? `${m.total_nilai} (avg ${m.rata_rata ?? '-'})` : '—'}</span></span>
                             </div>
                             <button type="button" data-detail-id="${m.id}"
-                                class="inline-flex shrink-0 items-center gap-1 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-primary-60 hover:bg-blue-50">
+                                class="shrink-0 inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-blue-200 bg-white px-3 text-xs font-medium text-primary-60 transition hover:bg-blue-50 active:scale-95">
                                 Detail
                             </button>
                         </div>
@@ -682,6 +582,14 @@
                     emptyEl.classList.remove('hidden');
                     emptyEl.classList.add('flex');
                     pag.classList.add('hidden');
+                    const hasFilter = state.q.trim() !== '' || state.status !== '';
+                    emptyTitle.textContent = allItems.length === 0
+                        ? 'Belum ada mata pelajaran yang ditugaskan kepada Anda.'
+                        : 'Tidak ada mata pelajaran yang cocok';
+                    emptyDesc.textContent = allItems.length === 0
+                        ? 'Saat penugasan tersedia, mata pelajaran Anda akan muncul di sini.'
+                        : 'Coba ubah kata kunci pencarian atau sesuaikan opsi filter Anda.';
+                    btnEmptyReset.classList.toggle('hidden', !hasFilter && allItems.length === 0);
                 } else {
                     emptyEl.classList.add('hidden');
                     emptyEl.classList.remove('flex');
@@ -714,12 +622,11 @@
                 pagesEl.innerHTML = pagesHtml;
 
                 let filterCount = 0;
-                let summaryTxt = 'Menampilkan semua mata pelajaran.';
+                let summaryTxt = 'Menampilkan semua mata pelajaran yang Anda ampu.';
                 if (state.status) {
                     filterCount++;
-                    if (state.status === 'diampu_saya') summaryTxt = 'Hanya menampilkan mata pelajaran yang Anda ampu.';
-                    else if (state.status === 'dipakai') summaryTxt = 'Hanya menampilkan mata pelajaran yang memiliki guru pengampu.';
-                    else if (state.status === 'kosong') summaryTxt = 'Hanya menampilkan mata pelajaran yang belum memiliki guru pengampu.';
+                    if (state.status === 'aktif') summaryTxt = 'Hanya menampilkan mata pelajaran aktif.';
+                    else if (state.status === 'nonaktif') summaryTxt = 'Hanya menampilkan mata pelajaran nonaktif.';
                 }
 
                 if (filterCount > 0) {
@@ -741,25 +648,31 @@
                 dmTitle.textContent = m.nama;
                 dmKodeBadge.textContent = m.kode || 'TANPA KODE';
 
-                if (m.dipakai) {
-                    dmStatusBadge.className = 'inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-primary-70';
-                    dmStatusBadge.textContent = 'Aktif Digunakan';
+                if (m.aktif) {
+                    dmStatusBadge.className = 'inline-flex rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700';
+                    dmStatusBadge.textContent = 'Aktif';
                 } else {
                     dmStatusBadge.className = 'inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600';
-                    dmStatusBadge.textContent = 'Belum Ada Pengampu';
+                    dmStatusBadge.textContent = 'Nonaktif';
                 }
 
-                if (m.diampu_saya) {
+                const isPengampuSaya = (m.pengampu_list || []).some(g => g.is_me);
+                dmFooter.querySelector('#dm-link-input-nilai')?.remove();
+                if (isPengampuSaya) {
                     dmBannerSaya.classList.remove('hidden');
-                    dmLinkInputNilai.classList.remove('hidden');
+                    const link = document.createElement('a');
+                    link.id = 'dm-link-input-nilai';
+                    link.href = `${baseInputNilai}?mapel_id=${encodeURIComponent(m.id)}`;
+                    link.className = 'inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-primary-60 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-500/20 transition hover:bg-primary-70 active:scale-[.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60';
+                    link.innerHTML = '<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></svg>Input Nilai Sekarang';
+                    dmFooter.appendChild(link);
                 } else {
                     dmBannerSaya.classList.add('hidden');
-                    dmLinkInputNilai.classList.add('hidden');
                 }
 
                 dmTotalNilai.textContent = (m.total_nilai || 0).toLocaleString('id-ID');
                 dmRataNilai.textContent  = m.rata_rata != null ? m.rata_rata : '-';
-                dmTotalSiswa.textContent = (m.total_siswa || 0).toLocaleString('id-ID');
+                dmTotalSiswa.textContent = (m.total_siswa_relevan || 0).toLocaleString('id-ID');
 
                 const pengampu = m.pengampu_list || [];
                 dmPengampuCount.textContent = pengampu.length;
@@ -874,20 +787,6 @@
                 render();
             });
 
-            // Tombol "Saring Mapel Saya" dari banner
-            if (btnFokusSaya) {
-                btnFokusSaya.addEventListener('click', () => {
-                    statusEl.value = 'diampu_saya';
-                    state.status = 'diampu_saya';
-                    state.page = 1;
-                    render();
-                    const tableContainer = root.querySelector('.border-slate-100.bg-white');
-                    if (tableContainer) {
-                        tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                });
-            }
-
             // Tombol reset pada Empty State
             if (btnEmptyReset) {
                 btnEmptyReset.addEventListener('click', () => {
@@ -989,50 +888,6 @@
                 }
             });
 
-            // ===== Count Up Animation =====
-            const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const easeOutExpo = (t) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t));
-
-            function countTo(el, from, to, ms) {
-                if (reduceMotion || from === to) { el.textContent = to; return; }
-                const t0 = performance.now();
-                const step = (now) => {
-                    const t = Math.min(1, (now - t0) / ms);
-                    el.textContent = Math.round(from + (to - from) * easeOutExpo(t));
-                    if (t < 1) requestAnimationFrame(step);
-                };
-                requestAnimationFrame(step);
-            }
-
-            function initReveal() {
-                if (!('IntersectionObserver' in window)) return;
-                root.classList.add('reveal-ready');
-
-                const observer = new IntersectionObserver((entries) => {
-                    entries.forEach((entry) => {
-                        if (!entry.isIntersecting) return;
-                        const target = entry.target;
-                        target.classList.add('is-visible');
-                        observer.unobserve(target);
-
-                        const delay = (parseFloat(getComputedStyle(target).getPropertyValue('--d')) || 0) * 1000;
-                        target.querySelectorAll('[data-count]').forEach((el) => {
-                            const val = Number(el.dataset.count);
-                            if (!isNaN(val) && val > 0) {
-                                setTimeout(() => countTo(el, 0, val, 1400), delay + 200);
-                            }
-                        });
-                    });
-                }, { threshold: 0.05, rootMargin: '0px 0px -30px 0px' });
-
-                root.querySelectorAll('[data-reveal]').forEach((el) => {
-                    observer.observe(el);
-                    if (el.getBoundingClientRect().top < window.innerHeight) {
-                        el.classList.add('is-visible');
-                    }
-                });
-            }
-
             // Inisialisasi awal
             const urlQ = new URLSearchParams(window.location.search).get('q') || new URLSearchParams(window.location.search).get('search');
             if (urlQ) {
@@ -1041,7 +896,6 @@
                 searchClr.classList.remove('hidden');
             }
             render();
-            initReveal();
         })();
     </script>
 @endpush

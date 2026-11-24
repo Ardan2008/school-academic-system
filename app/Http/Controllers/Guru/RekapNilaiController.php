@@ -37,7 +37,7 @@ class RekapNilaiController extends Controller
         return view('dashboard.guru.rekap-nilai.index', [
             'filter' => $filter,
             'semesters' => Periode::SEMESTERS,
-            'tahunAjarans' => $this->statistik->tahunAjaranTersedia($mapelIds),
+            'tahunAjarans' => $this->statistik->tahunAjaranTersedia($mapelIds, $guru),
             'kelasOptions' => $this->statistik->kelasDiampu($guru),
             'mapelDiampu' => $this->statistik->mapelDiampu($guru),
 
@@ -46,7 +46,8 @@ class RekapNilaiController extends Controller
                 $filter['semester'],
                 $filter['kelas'],
                 null,
-                $mapelIds
+                $mapelIds,
+                $guru
             ),
             'perSiswa' => $this->statistik->rekapPerSiswa(
                 $filter['tahun_ajaran'],
@@ -55,7 +56,8 @@ class RekapNilaiController extends Controller
                 null,
                 $mapelIds,
                 $filter['cari'],
-                self::PER_HALAMAN
+                self::PER_HALAMAN,
+                $guru
             ),
             'perKelas' => $this->statistik->rekapPerKelasPaginated(
                 $filter['tahun_ajaran'],
@@ -63,7 +65,9 @@ class RekapNilaiController extends Controller
                 $filter['kelas'],
                 null,
                 $mapelIds,
-                self::PER_HALAMAN
+                self::PER_HALAMAN,
+                'kelas_page',
+                $guru
             ),
             'perMapel' => $this->statistik->rekapPerMataPelajaranPaginated(
                 $filter['tahun_ajaran'],
@@ -71,9 +75,11 @@ class RekapNilaiController extends Controller
                 $filter['kelas'],
                 null,
                 $mapelIds,
-                self::PER_HALAMAN
+                self::PER_HALAMAN,
+                'mapel_page',
+                $guru
             ),
-            'perkembangan' => $this->statistik->perkembanganPeriode($filter['kelas'], null, $mapelIds),
+            'perkembangan' => $this->statistik->perkembanganPeriode($filter['kelas'], null, $mapelIds, $guru),
         ]);
     }
 
@@ -90,7 +96,8 @@ class RekapNilaiController extends Controller
             $filter['kelas'],
             null,
             $mapelIds,
-            $filter['cari']
+            $filter['cari'],
+            $guru
         );
 
         $judulSeri = ['No', 'NIS', 'Nama', 'Kelas', 'Jurusan'];
@@ -143,7 +150,8 @@ class RekapNilaiController extends Controller
             $filter['semester'],
             $filter['kelas'],
             null,
-            $mapelIds
+            $mapelIds,
+            $guru
         );
 
         $baris = [];
@@ -186,7 +194,8 @@ class RekapNilaiController extends Controller
             $filter['semester'],
             $filter['kelas'],
             null,
-            $mapelIds
+            $mapelIds,
+            $guru
         );
 
         $baris = [];

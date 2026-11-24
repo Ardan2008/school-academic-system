@@ -4,16 +4,18 @@
 @section('subtitle', 'Dashboard Guru')
 
 @section('content')
-    <div id="pengumpulan-tugas-page">
+    <x-dashboard.animations />
+
+    <div id="pengumpulan-tugas-page" data-dashboard>
         @if (session('success'))
-            <div class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div role="status" class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                 <x-lucide-badge-check class="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
                 <p class="text-sm font-medium text-emerald-800">{{ session('success') }}</p>
             </div>
         @endif
 
         @if ($errors->any())
-            <div class="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
+            <div role="alert" class="mb-5 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4">
                 <x-lucide-triangle-alert class="mt-0.5 h-5 w-5 shrink-0 text-red-600" />
                 <p class="text-sm font-medium text-red-800">{{ $errors->first() }}</p>
             </div>
@@ -28,7 +30,7 @@
 
             <span class="inline-flex w-fit items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-medium text-primary-70">
                 <x-lucide-school class="h-4 w-4 shrink-0" />
-                Kelas {{ $tugas->kelas }}@if (filled($tugas->jurusan)) · {{ $tugas->jurusan }}@endif
+                Kelas {{ $tugas->kelas }}@if (filled($tugas->jurusan)) - {{ $tugas->jurusan }}@endif
             </span>
         </div>
 
@@ -50,7 +52,7 @@
             </div>
         </div>
 
-        <div class="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+        <div class="mt-4 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60" data-reveal>
             <div class="hidden overflow-x-auto md:block">
                 <table class="w-full text-left text-sm">
                     <thead>
@@ -61,7 +63,7 @@
                             <th class="w-32 px-4 py-3.5 font-medium">Status Siswa</th>
                             <th class="w-44 px-4 py-3.5 font-medium">Dikumpulkan</th>
                             <th class="w-32 px-4 py-3.5 font-medium">Status</th>
-                            <th class="w-48 px-4 py-3.5 font-medium">Nilai</th>
+                            <th class="w-72 px-4 py-3.5 font-medium">Penilaian</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-slate-800">
@@ -72,7 +74,12 @@
                             <tr class="transition hover:bg-blue-50/40">
                                 <td class="px-4 py-3.5 text-center text-xs text-slate-500">{{ $loop->iteration }}</td>
                                 <td class="px-4 py-3.5 tabular-nums text-slate-600">{{ $murid->nis ?? '—' }}</td>
-                                <td class="px-4 py-3.5 font-medium text-slate-900">{{ $murid->name }}</td>
+                                <td class="px-4 py-3.5 font-medium text-slate-900">
+                                    {{ $murid->name }}
+                                    @if (filled($kumpul?->jawaban))
+                                        <p class="mt-0.5 line-clamp-2 text-xs font-normal text-slate-500" title="{{ $kumpul->jawaban }}">Jawaban: {{ $kumpul->jawaban }}</p>
+                                    @endif
+                                </td>
                                 <td class="px-4 py-3.5">
                                     <span @class([
                                         'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
@@ -100,18 +107,30 @@
                                         <span class="text-xs text-slate-400">Menunggu pengumpulan</span>
                                     @else
                                         <form method="POST" action="{{ route('dashboard.guru.tugas-materi.pengumpulan.update', $kumpul) }}"
-                                              class="flex items-center gap-2">
+                                              class="space-y-2">
                                             @csrf
                                             @method('PUT')
-                                            <input type="number" name="nilai" min="0" max="100" step="0.01"
-                                                   value="{{ old('nilai', $kumpul->nilai) }}"
-                                                   aria-label="Nilai {{ $murid->name }}"
-                                                   class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
-                                            <button type="submit"
-                                                    class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
-                                                <x-lucide-save class="h-3.5 w-3.5" />
-                                                Simpan
-                                            </button>
+                                            <div class="flex items-center gap-2">
+                                                <input type="number" name="nilai" min="0" max="100" step="0.01"
+                                                       value="{{ old('nilai', $kumpul->nilai) }}"
+                                                       aria-label="Nilai {{ $murid->name }}"
+                                                       class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
+                                                <button type="submit"
+                                                        class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
+                                                    <x-lucide-save class="h-3.5 w-3.5" />
+                                                    Simpan
+                                                </button>
+                                            </div>
+                                            <div>
+                                                <label for="umpan-desktop-{{ $kumpul->id }}" class="sr-only">Umpan balik untuk {{ $murid->name }}</label>
+                                                <textarea id="umpan-desktop-{{ $kumpul->id }}"
+                                                          name="umpan_balik"
+                                                          rows="2"
+                                                          maxlength="2000"
+                                                          placeholder="Umpan balik untuk siswa..."
+                                                          class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30"
+                                                >{{ old('umpan_balik', $kumpul->umpan_balik) }}</textarea>
+                                            </div>
                                         </form>
                                     @endif
                                 </td>
@@ -141,6 +160,9 @@
                             <div class="min-w-0">
                                 <p class="font-medium text-slate-900">{{ $murid->name }}</p>
                                 <p class="mt-0.5 text-xs text-slate-500">{{ $murid->nis ?? '—' }} · {{ $murid->statusLabel() }}</p>
+                                @if (filled($kumpul?->jawaban))
+                                    <p class="mt-1 line-clamp-2 text-xs text-slate-500" title="{{ $kumpul->jawaban }}">Jawaban: {{ $kumpul->jawaban }}</p>
+                                @endif
                             </div>
                             @if ($kumpul === null)
                                 <span class="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">Belum</span>
@@ -157,18 +179,30 @@
 
                         @if ($kumpul !== null)
                             <form method="POST" action="{{ route('dashboard.guru.tugas-materi.pengumpulan.update', $kumpul) }}"
-                                  class="mt-3 flex items-center gap-2">
+                                  class="mt-3 space-y-2">
                                 @csrf
                                 @method('PUT')
-                                <input type="number" name="nilai" min="0" max="100" step="0.01"
-                                       value="{{ old('nilai', $kumpul->nilai) }}"
-                                       aria-label="Nilai {{ $murid->name }}"
-                                       class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
-                                <button type="submit"
-                                        class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
-                                    <x-lucide-save class="h-3.5 w-3.5" />
-                                    Simpan Nilai
-                                </button>
+                                <div class="flex items-center gap-2">
+                                    <input type="number" name="nilai" min="0" max="100" step="0.01"
+                                           value="{{ old('nilai', $kumpul->nilai) }}"
+                                           aria-label="Nilai {{ $murid->name }}"
+                                           class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
+                                    <button type="submit"
+                                            class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
+                                        <x-lucide-save class="h-3.5 w-3.5" />
+                                        Simpan Nilai
+                                    </button>
+                                </div>
+                                <div>
+                                    <label for="umpan-mobile-{{ $kumpul->id }}" class="sr-only">Umpan balik untuk {{ $murid->name }}</label>
+                                    <textarea id="umpan-mobile-{{ $kumpul->id }}"
+                                              name="umpan_balik"
+                                              rows="2"
+                                              maxlength="2000"
+                                              placeholder="Umpan balik untuk siswa..."
+                                              class="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder-slate-400 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30"
+                                    >{{ old('umpan_balik', $kumpul->umpan_balik) }}</textarea>
+                                </div>
                             </form>
                         @endif
                     </div>

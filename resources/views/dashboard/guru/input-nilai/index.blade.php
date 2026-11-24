@@ -4,11 +4,13 @@
 @section('subtitle', 'Dashboard Guru')
 
 @section('content')
-    <div id="input-nilai-page">
+    <x-dashboard.animations />
+
+    <div id="input-nilai-page" data-dashboard>
 
         @if (count($inputNilaiData['mapel']) === 0)
             {{-- Guru belum punya mata pelajaran, jadi tidak ada yang bisa dinilai. --}}
-            <div class="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-5 shadow-sm sm:p-6">
+                <div class="rounded-2xl border border-amber-200/70 bg-amber-50/60 p-5 shadow-sm sm:p-6" data-reveal>
                 <div class="flex items-start gap-3.5">
                     <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
                         <x-lucide-alert-circle class="h-5 w-5" />
@@ -20,17 +22,15 @@
                             Input nilai hanya terbuka untuk mata pelajaran yang Anda ampu, supaya nilai tidak
                             tercatat atas nama guru yang salah. Hubungi administrator untuk penugasan mata pelajaran.
                         </p>
-                        <a href="{{ route('dashboard.guru.mata-pelajaran.index') }}"
-                            class="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3.5 text-xs font-medium text-amber-700 transition hover:bg-amber-50">
-                            <x-lucide-book-open class="h-3.5 w-3.5" />
-                            Lihat Mata Pelajaran
-                        </a>
+                        <p class="mt-4 text-xs font-medium text-amber-700">
+                            Hubungi administrator untuk penugasan mata pelajaran.
+                        </p>
                     </div>
                 </div>
             </div>
         @elseif (count($inputNilaiData['siswa']) === 0)
             {{-- Ada mapel tetapi belum ada siswa aktif dengan kelas. --}}
-            <div class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white/70 px-6 py-16 text-center">
+            <div class="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-white/70 px-6 py-16 text-center" data-reveal>
                 <span class="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-10 text-primary-70">
                     <x-lucide-users class="h-7 w-7" />
                 </span>
@@ -41,6 +41,10 @@
                 </p>
             </div>
         @else
+            @php
+                $mapelAwal = $inputNilaiData['mapel'][0] ?? null;
+            @endphp
+
             {{-- Ringkasan penilaian, diperbarui mengikuti kelas yang dipilih. --}}
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
                 @php
@@ -67,7 +71,7 @@
             </div>
 
             {{-- Kartu utama: pemilihan dan tabel nilai. --}}
-            <form id="nilai-form" class="mt-5 rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60 sm:mt-6" autocomplete="off">
+            <form id="nilai-form" class="mt-5 rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60 sm:mt-6" data-reveal autocomplete="off">
                 @csrf
 
                 <div class="rounded-t-2xl bg-slate-50 p-4 sm:p-5">
@@ -94,11 +98,12 @@
                         <label class="block">
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mata Pelajaran</span>
                             <div class="relative">
-                                <select id="nilai-mapel"
-                                    class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
-                                </select>
-                                <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                                <input id="nilai-mapel-tampil" type="text" readonly aria-readonly="true" disabled tabindex="-1"
+                                    value="{{ $mapelAwal ? (($mapelAwal['kode'] ? $mapelAwal['kode'].' · ' : '').$mapelAwal['nama']) : 'Belum ada mata pelajaran yang ditugaskan' }}"
+                                    class="h-10 w-full cursor-not-allowed select-none rounded-lg border border-slate-300 bg-slate-50 pl-3 pr-9 text-sm text-slate-500 outline-none transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-100 focus:border-slate-300 focus:outline-none focus:ring-0">
+                                <x-lucide-lock class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             </div>
+                            <input type="hidden" id="nilai-mapel" name="mata_pelajaran_id" value="{{ $mapelAwal['id'] ?? '' }}">
                         </label>
 
                         <label class="block">
@@ -280,6 +285,7 @@
                 || '';
 
             const mapelEl = $('#nilai-mapel');
+            const mapelTampilEl = $('#nilai-mapel-tampil');
             const jurusanEl = $('#nilai-jurusan');
             const kelasEl = $('#nilai-kelas');
             const semesterEl = $('#nilai-semester');
@@ -313,8 +319,9 @@
                 nilaiIndex.set(kunci(n.mata_pelajaran_id, n.user_id, n.tahun_ajaran, n.semester), n);
             });
 
+            const mapelTerpilihId = data.mapel_terpilih_id ?? (data.mapel[0] ? data.mapel[0].id : null);
             const state = {
-                mapelId: data.mapel[0] ? data.mapel[0].id : null,
+                mapelId: mapelTerpilihId,
                 jurusan: '',
                 kelas: '',
                 semester: data.periode.semester,
@@ -322,7 +329,6 @@
             };
 
             const siswaAktif = (data.siswa || []).map((s) => ({ ...s }));
-            const semuaKelas = (data.kelas || []).map((k) => ({ ...k }));
 
             // ===== Isi select =====
             const fillSelect = (sel, items, placeholder) => {
@@ -339,12 +345,12 @@
             };
 
             const renderMapel = () => {
-                fillSelect(mapelEl, data.mapel.map((m) => ({
-                    nilai: String(m.id),
-                    teks: m.kode ? `${m.kode} · ${m.nama}` : m.nama,
-                })), 'Pilih Mata Pelajaran');
+                const aktif = (data.mapel || []).find((m) => String(m.id) === String(state.mapelId));
 
                 mapelEl.value = state.mapelId !== null ? String(state.mapelId) : '';
+                mapelTampilEl.value = aktif
+                    ? (aktif.kode ? `${aktif.kode} · ${aktif.nama}` : aktif.nama)
+                    : 'Belum ada mata pelajaran yang ditugaskan';
             };
 
             const renderSemester = () => {
@@ -374,7 +380,10 @@
                 jurusanEl.value = state.jurusan;
             };
 
-            const kelasTersedia = () => semuaKelas.filter((k) => !state.jurusan || k.jurusan === state.jurusan);
+            const kelasTersedia = () => {
+                const daftar = data.kelas_semua || [];
+                return daftar.filter((k) => !state.jurusan || k.jurusan === state.jurusan);
+            };
 
             const renderKelas = () => {
                 const items = kelasTersedia().map((k) => {
@@ -384,7 +393,12 @@
                     return {
                         nilai: `${k.jurusan}||${k.kelas}`,
                         teks: label,
-                        data: { jurusan: k.jurusan, kelas: k.kelas },
+                        data: {
+                            jurusan: k.jurusan,
+                            kelas: k.kelas,
+                            mapel: k.mata_pelajaran_id,
+                            mapelNama: k.mata_pelajaran_nama,
+                        },
                     };
                 });
 
@@ -428,7 +442,7 @@
                     title: 'Berhasil',
                     text,
                     showConfirmButton: false,
-                    timer: 1600,
+                    timer: 1800,
                     timerProgressBar: true,
                     allowOutsideClick: false,
                 });
@@ -582,11 +596,6 @@
             };
 
             // ===== Event pilihan =====
-            mapelEl.addEventListener('change', () => {
-                state.mapelId = mapelEl.value === '' ? null : Number(mapelEl.value);
-                render();
-            });
-
             jurusanEl.addEventListener('change', () => {
                 state.jurusan = jurusanEl.value;
                 state.kelas = '';
@@ -598,6 +607,12 @@
                 const option = kelasEl.options[kelasEl.selectedIndex];
                 state.kelas = option?.dataset.kelas || '';
                 state.jurusan = option?.dataset.jurusan || '';
+
+                if (option?.dataset.mapel) {
+                    state.mapelId = Number(option.dataset.mapel);
+                }
+
+                renderMapel();
                 jurusanEl.value = state.jurusan;
                 render();
             });

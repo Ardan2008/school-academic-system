@@ -4,7 +4,9 @@
 @section('subtitle', 'Dashboard Siswa')
 
 @section('content')
-    <div id="riwayat-akademik-page">
+    <x-dashboard.animations />
+
+    <div id="riwayat-akademik-page" data-dashboard>
 
         {{-- Judul halaman + identitas rombel siswa --}}
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -46,7 +48,7 @@
                 ];
             @endphp
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" data-reveal>
                 @foreach ($stats as $stat)
                     @php
                         $statPill = $statTone[$stat['key']][0] ?? 'bg-blue-100 text-primary-60';
@@ -66,7 +68,7 @@
             </div>
 
             {{-- Grafik perkembangan rata-rata per periode --}}
-            <div class="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-md shadow-slate-200/60 sm:mt-6 sm:p-5">
+            <div class="mt-5 rounded-2xl border border-slate-100 bg-white p-4 shadow-md shadow-slate-200/60 sm:mt-6 sm:p-5" data-reveal>
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="min-w-0">
                         <h3 class="text-sm font-semibold text-slate-900">Perkembangan Rata-Rata Nilai</h3>
@@ -122,7 +124,7 @@
             {{-- Daftar nilai per periode (terbaru lebih dulu) --}}
             <div class="mt-5 space-y-5 sm:mt-6">
                 @foreach ($riwayat as $periode)
-                    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+                    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60" data-reveal>
 
                         {{-- Kepala periode --}}
                         <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3.5 sm:px-5">
