@@ -833,6 +833,9 @@
                         title: 'Password Direset',
                         html: `Password baru untuk <b>${data.data.email}</b>:<br>
                                <code class="mt-2 inline-block rounded-lg bg-slate-100 px-3 py-1 font-mono text-sm text-slate-800">${data.data.password}</code>`,
+                        saskansaModal: true,
+                        showConfirmButton: true,
+                        confirmButtonText: 'Tutup',
                     });
                 } else {
                     Swal.fire({ icon: 'error', title: 'Gagal', text: data.message || 'Terjadi kesalahan.' });

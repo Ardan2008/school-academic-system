@@ -299,7 +299,8 @@ class LoginController extends Controller
 
         return redirect()->route('login')
             ->with('logged_out', true)
-            ->with('logged_out_role', in_array($guard, $roleGuards, true) ? $guard : null);
+            ->with('logged_out_role', in_array($guard, $roleGuards, true) ? $guard : null)
+            ->with('success', 'Berhasil keluar dari akun.');
     }
 
     /**

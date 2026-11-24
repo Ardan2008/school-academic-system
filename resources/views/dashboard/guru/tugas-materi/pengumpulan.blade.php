@@ -8,10 +8,7 @@
 
     <div id="pengumpulan-tugas-page" data-dashboard>
         @if (session('success'))
-            <div role="status" class="mb-5 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-                <x-lucide-badge-check class="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
-                <p class="text-sm font-medium text-emerald-800">{{ session('success') }}</p>
-            </div>
+            <div data-flash-success="{{ session('success') }}" class="hidden"></div>
         @endif
 
         @if ($errors->any())

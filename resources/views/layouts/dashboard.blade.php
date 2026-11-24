@@ -218,9 +218,9 @@
         data-open="false"
         aria-hidden="true"
         inert
-        class="logout-modal fixed inset-0 z-70 flex items-center justify-center p-4"
+        class="logout-modal fixed inset-0 z-[11000] flex items-center justify-center p-4"
     >
-        <div data-modal-backdrop class="logout-modal-backdrop absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+        <div data-modal-backdrop class="logout-modal-backdrop absolute inset-0 bg-slate-900/55 backdrop-blur-[2px]"></div>
 
         <div
             data-modal-panel
@@ -285,41 +285,37 @@
                 > [data-materi-form-backdrop],
                 > [data-tm-backdrop]
             ),
-            body .logout-modal,
-            body .pwd-confirm,
             body .pwd-modal,
             body .tpl-modal,
             body .km,
             body .gm,
             body .sm,
-            body .kconfirm,
-            body .gconfirm,
-            body .sconfirm,
             body .proses-overlay,
             body [data-tm-modal],
             body [data-tugas-modal],
             body [data-materi-modal],
-            body .jg-overlay,
-            body #site-loading,
-            body .swal2-container {
+            body .jg-overlay {
                 left: var(--sidebar-w, 16rem);
             }
         }
 
         .logout-modal {
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
-            transition: opacity .3s ease;
+            transition: opacity .28s ease, visibility 0s linear .28s;
         }
 
         .logout-modal[data-open="true"] {
             opacity: 1;
+            visibility: visible;
             pointer-events: auto;
+            transition: opacity .28s ease, visibility 0s linear 0s;
         }
 
         .logout-modal-backdrop {
             opacity: 0;
-            transition: opacity .3s ease;
+            transition: opacity .28s ease;
         }
 
         .logout-modal[data-open="true"] .logout-modal-backdrop {
@@ -329,7 +325,7 @@
         .logout-modal-panel {
             opacity: 0;
             transform: translateY(20px) scale(.97);
-            transition: opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1);
+            transition: opacity .28s cubic-bezier(.22,1,.36,1), transform .28s cubic-bezier(.22,1,.36,1);
         }
 
         .logout-modal[data-open="true"] .logout-modal-panel {
@@ -679,17 +675,22 @@
             logoutModal.querySelector('[data-modal-backdrop]').addEventListener('click', closeModal);
 
             yesBtn.addEventListener('click', () => {
-                const loading = document.getElementById('site-loading');
-                if (loading) {
-                    const loadingText = loading.querySelector('[data-loading-text]');
-                    if (loadingText) loadingText.textContent = 'Keluar dari akun...';
-                    loading.removeAttribute('inert');
-                    loading.setAttribute('aria-hidden', 'false');
-                    requestAnimationFrame(() => { loading.dataset.open = 'true'; });
+                closeModal();
+                if (window.saskansaLoading?.show) {
+                    window.saskansaLoading.show('Sedang keluar dari akun...');
+                } else {
+                    const loading = document.getElementById('site-loading');
+                    if (loading) {
+                        const loadingText = loading.querySelector('[data-loading-text]');
+                        if (loadingText) loadingText.textContent = 'Sedang keluar dari akun...';
+                        loading.removeAttribute('inert');
+                        loading.setAttribute('aria-hidden', 'false');
+                        requestAnimationFrame(() => { loading.dataset.open = 'true'; });
+                    }
                 }
                 setTimeout(() => {
                     activeLogoutForm.submit();
-                }, 800);
+                }, 350);
             });
         });
     </script>

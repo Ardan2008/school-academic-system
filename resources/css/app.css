@@ -37,26 +37,81 @@
 }
 
 /* -------- SweetAlert2 theme (biru SASKANSA) -------- */
+.swal2-container { z-index: 12000 !important; }
+.swal2-popup { border-radius: 16px; box-shadow: 0 20px 45px rgba(15, 23, 42, .18); }
+.swal2-title { font-size: 1.2rem; font-weight: 700; color: #0f172a; }
+.swal2-html-container, .swal2-text { color: #475569; }
+.swal2-actions { gap: .6rem; }
+.swal2-styled.swal2-confirm, .swal2-styled.swal2-cancel { border-radius: 10px; font-weight: 600; padding: .65rem 1.1rem; }
+.swal2-icon.swal2-success { color: #2563eb; border-color: #2563eb; }
+.swal2-icon.swal2-success .swal2-success-ring { border-color: rgba(37, 99, 235, .3); }
+.swal2-icon.swal2-success [class^='swal2-success-line'] { background-color: #2563eb; }
+.swal2-icon.swal2-success .swal2-success-fix { background-color: #fff; }
+.swal2-timer-progress-bar { background-color: #2563eb; }
 
-/* Ikon success biru (bawaan hijau) */
-.swal2-icon.swal2-success {
-    color: #2563eb;
-    border-color: #2563eb;
+/* -------- SASKANSA Modern Floating Toast -------- */
+.saskansa-toast-container {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 13000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(380px, calc(100vw - 24px));
+    pointer-events: none;
 }
-
-.swal2-icon.swal2-success .swal2-success-ring {
-    border-color: #2563eb;
+.saskansa-toast {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 12px;
+    align-items: start;
+    width: 100%;
+    min-width: 320px;
+    padding: 14px 14px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .08), 0 2px 8px rgba(15, 23, 42, .04);
+    color: #0f172a;
+    pointer-events: auto;
+    overflow: hidden;
+    animation: saskansa-toast-in 280ms cubic-bezier(.22,1,.36,1);
 }
-
-.swal2-icon.swal2-success [class^='swal2-success-line'] {
-    background-color: #2563eb;
+.saskansa-toast.is-leaving { animation: saskansa-toast-out 220ms ease forwards; }
+.saskansa-toast__icon {
+    width: 34px; height: 34px; border-radius: 999px;
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; margin-top: 1px;
 }
-
-.swal2-icon.swal2-success .swal2-success-fix {
-    background-color: #ffffff;
+.saskansa-toast__content { min-width: 0; padding-right: 2px; }
+.saskansa-toast__title { font-size: 14px; font-weight: 700; line-height: 1.3; color: #0f172a; margin: 0; }
+.saskansa-toast__desc { font-size: 13px; line-height: 1.45; color: #64748b; margin: 4px 0 0; word-break: break-word; }
+.saskansa-toast__close {
+    width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #94a3b8;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer; margin: -4px -4px 0 0;
 }
-
-/* Progress bar timer mengikuti warna biru aplikasi */
-.swal2-timer-progress-bar {
-    background-color: #2563eb;
+.saskansa-toast__close:hover { background: #f1f5f9; color: #475569; }
+.saskansa-toast__close:focus-visible { outline: 2px solid #2563eb; outline-offset: 1px; }
+.saskansa-toast__progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: rgba(148,163,184,.15); }
+.saskansa-toast__progress-bar { display: block; height: 100%; width: 100%; transform-origin: left; animation: saskansa-toast-progress linear forwards; }
+.saskansa-toast--success .saskansa-toast__icon { background: #ecfdf3; color: #16a34a; }
+.saskansa-toast--success .saskansa-toast__progress-bar { background: #22c55e; }
+.saskansa-toast--error .saskansa-toast__icon { background: #fef2f2; color: #dc2626; }
+.saskansa-toast--error .saskansa-toast__progress-bar { background: #ef4444; }
+.saskansa-toast--warning .saskansa-toast__icon { background: #fffbeb; color: #d97706; }
+.saskansa-toast--warning .saskansa-toast__progress-bar { background: #f59e0b; }
+.saskansa-toast--information .saskansa-toast__icon { background: #eff6ff; color: #2563eb; }
+.saskansa-toast--information .saskansa-toast__progress-bar { background: #3b82f6; }
+@keyframes saskansa-toast-in { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes saskansa-toast-out { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
+@keyframes saskansa-toast-progress { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@media (max-width: 640px) {
+    .saskansa-toast-container { left: 12px; right: 12px; top: 12px; width: auto; }
+    .saskansa-toast { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .saskansa-toast, .saskansa-toast.is-leaving { animation: none; }
+    .saskansa-toast__progress-bar { animation: none; }
 }

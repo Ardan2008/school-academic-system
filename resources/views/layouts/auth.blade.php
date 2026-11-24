@@ -12,6 +12,13 @@
 
 <body class="min-h-screen text-white">
 
+    @if (session('success'))
+        <div data-flash-success="{{ session('success') }}" class="hidden"></div>
+    @endif
+    @if (session('error'))
+        <div data-flash-error="{{ session('error') }}" class="hidden"></div>
+    @endif
+
     @yield('content')
 
     @include('components.ui.loading-screen')
