@@ -2,17 +2,25 @@
 
 namespace App\Http\Controllers\Siswa;
 
+use App\Http\Controllers\Concerns\MelayaniFileMateri;
 use App\Http\Controllers\Controller;
 use App\Models\JadwalPelajaran;
 use App\Models\Materi;
 use App\Models\Nilai;
+use App\Models\PengumpulanTugas;
 use App\Models\Tugas;
 use App\Models\User;
 use App\Services\InfoSiswa;
+use App\Services\JamBelajar;
 use App\Services\StatistikNilai;
 use App\Support\Periode;
+use App\Support\Waktu;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
@@ -25,26 +33,37 @@ use Illuminate\View\View;
  */
 class AkademikController extends Controller
 {
+    use MelayaniFileMateri;
+
     public function __construct(
         private readonly StatistikNilai $statistik,
         private readonly InfoSiswa $infoSiswa,
+        private readonly JamBelajar $jamBelajar,
     ) {}
 
     public function jadwal(Request $request): View
     {
         $siswa = $this->siswa($request);
+        $konfigurasiJam = $this->jamBelajar->konfigurasi();
+        $hariAktif = $this->jamBelajar->hariAktif($konfigurasiJam);
 
         // Filter hari lewat query string; hanya nama hari sekolah yang diterima.
         $hariDipilih = trim((string) $request->query('hari', ''));
-        $hariDipilih = in_array($hariDipilih, JadwalPelajaran::HARI, true) ? $hariDipilih : null;
+        $hariDipilih = in_array($hariDipilih, $hariAktif, true) ? $hariDipilih : null;
 
         // Ringkasan & daftar hari selalu dari sepekan penuh, supaya kartu statistik
         // dan chip filter tidak ikut berubah saat satu hari sedang disaring.
-        $semuaJadwal = $this->infoSiswa->jadwalMingguan($siswa);
+        $semuaJadwalMentah = $this->infoSiswa->jadwalMingguan($siswa);
+        $jadwalNonaktif = $semuaJadwalMentah->filter(
+            fn ($items, string $namaHari) => ! in_array($namaHari, $hariAktif, true)
+        );
+        $semuaJadwal = $semuaJadwalMentah->filter(
+            fn ($items, string $namaHari) => in_array($namaHari, $hariAktif, true)
+        );
         $semuaBaris = $semuaJadwal->flatten();
-
-        $jamMulai = $semuaBaris->min(fn (JadwalPelajaran $j) => substr((string) $j->jam_mulai, 0, 5));
-        $jamSelesai = $semuaBaris->max(fn (JadwalPelajaran $j) => substr((string) $j->jam_selesai, 0, 5));
+        $jadwalPerluPerhatian = $semuaJadwalMentah->flatten()
+            ->filter(fn (JadwalPelajaran $baris) => $baris->infoWaktu($konfigurasiJam)['catatan'] !== [])
+            ->values();
 
         return view('dashboard.siswa.jadwal-pelajaran.index', [
             'siswa' => $siswa,
@@ -52,11 +71,16 @@ class AkademikController extends Controller
             'hariDipilih' => $hariDipilih,
             'hariTersedia' => $semuaJadwal->keys(),
             'hariIni' => JadwalPelajaran::hariIni(),
+            'periode' => Periode::periodeSekarang(),
+            'konfigurasiJam' => $konfigurasiJam,
+            'hariAktif' => $hariAktif,
+            'jadwalNonaktif' => $jadwalNonaktif,
+            'jadwalPerluPerhatian' => $jadwalPerluPerhatian,
             'ringkasan' => [
                 'total_jam' => $semuaBaris->count(),
                 'total_mapel' => $semuaBaris->pluck('mata_pelajaran_id')->filter()->unique()->count(),
                 'hari_aktif' => $semuaJadwal->count(),
-                'jam_belajar' => ($jamMulai !== null && $jamSelesai !== null) ? $jamMulai.'–'.$jamSelesai : null,
+                'jam_belajar' => $konfigurasiJam->jamMasukLabel().'–'.$konfigurasiJam->jamSelesaiLabel(),
             ],
         ]);
     }
@@ -77,7 +101,7 @@ class AkademikController extends Controller
         $statusTugas = $semuaTugas->mapWithKeys(function (Tugas $tugas): array {
             $status = $this->infoSiswa->statusTugas($tugas);
             $status['icon'] = match ($status['kode']) {
-                'selesai' => 'lucide-circle-check',
+                'dikumpulkan' => 'lucide-circle-check',
                 'terlambat' => 'lucide-alert-circle',
                 default => 'lucide-clock',
             };
@@ -119,7 +143,7 @@ class AkademikController extends Controller
             'materi' => $semuaMateri,
             'ringkasan' => [
                 'total_tugas' => $semuaTugas->count(),
-                'dikumpulkan' => $hitungStatus('selesai'),
+                'dikumpulkan' => $hitungStatus('dikumpulkan'),
                 'menunggu' => $hitungStatus('menunggu'),
                 'terlambat' => $hitungStatus('terlambat'),
                 'total_materi' => $semuaMateri->count(),
@@ -127,11 +151,196 @@ class AkademikController extends Controller
         ]);
     }
 
+    public function detailTugas(Request $request, Tugas $tugas): JsonResponse
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanTugasUntukSiswa($tugas, $siswa);
+
+        $tugas->load([
+            'mataPelajaran',
+            'guru',
+            'pengumpulan' => fn ($query) => $query->where('user_id', $siswa->id),
+        ]);
+
+                $pengumpulan = $tugas->pengumpulan->first();
+        $status = $this->infoSiswa->statusTugas($tugas);
+        $jurusan = trim((string) $tugas->jurusan);
+        $memilikiFile = $tugas->file_path !== null;
+
+        return response()->json([
+            'detail' => [
+                'id' => $tugas->id,
+                'judul' => $tugas->judul,
+                'action' => route('dashboard.siswa.tugas-materi.pengumpulan.store', $tugas),
+                'mata_pelajaran' => $tugas->mataPelajaran?->nama ?? '-',
+                'guru' => $tugas->guru?->name ?? 'Belum ada guru pengampu',
+                'kelas' => 'Kelas '.$tugas->kelas.($jurusan !== '' ? ' - '.$jurusan : ''),
+                'deskripsi' => $tugas->deskripsi,
+                'tanggal_diberikan' => $tugas->created_at !== null ? Waktu::tanggalJam($tugas->created_at) : '-',
+                'tenggat' => $tugas->deadline !== null ? Waktu::tanggalJam($tugas->deadline) : 'Tanpa tenggat',
+                'label_tenggat' => $tugas->labelDeadline(),
+                'status' => $status['label'],
+                'status_kode' => $status['kode'],
+                'status_class' => $status['class'],
+                'sudah_dikumpulkan' => $pengumpulan !== null,
+                'waktu_pengumpulan' => $pengumpulan?->dikumpulkan_at !== null
+                    ? Waktu::tanggalJam($pengumpulan->dikumpulkan_at)
+                    : null,
+                'jawaban' => $pengumpulan?->jawaban,
+                'nilai' => $pengumpulan?->nilai !== null
+                    ? rtrim(rtrim(number_format((float) $pengumpulan->nilai, 2, ',', '.'), '0'), ',')
+                    : null,
+                'umpan_balik' => $pengumpulan?->umpan_balik,
+                'lampiran' => $tugas->nama_file,
+                'lampiran_format' => $tugas->format_file,
+                'lampiran_ukuran' => $tugas->ukuran_file,
+                'lampiran_url' => $memilikiFile
+                    ? route('dashboard.siswa.tugas-materi.tugas.unduh', $tugas)
+                    : null,
+                'lampiran_preview_url' => $memilikiFile && $tugas->bisa_dipratinjau
+                    ? route('dashboard.siswa.tugas-materi.tugas.preview', $tugas)
+                    : null,
+            ],
+        ]);
+    }
+
+    public function detailMateri(Request $request, Materi $materi): JsonResponse
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanMateriUntukSiswa($materi, $siswa);
+
+        $materi->load(['mataPelajaran', 'guru']);
+        $memilikiFile = $materi->file_path !== null;
+
+        return response()->json([
+            'detail' => [
+                'id' => $materi->id,
+                'judul' => $materi->judul,
+                'mata_pelajaran' => $materi->mataPelajaran?->nama ?? '-',
+                'guru' => $materi->guru?->name ?? 'Belum ada guru pengampu',
+                'kelas' => 'Kelas '.$materi->kelas.($materi->jurusan ? ' - '.$materi->jurusan : ''),
+                'deskripsi' => $materi->deskripsi,
+                'tanggal' => $materi->tanggal?->translatedFormat('d F Y') ?? '-',
+                'tanggal_diperbarui' => $materi->updated_at?->translatedFormat('d F Y H:i'),
+                'memiliki_file' => $memilikiFile,
+                'nama_file' => $materi->nama_file,
+                'format' => $materi->format_file,
+                'ukuran' => $materi->ukuran_file,
+                'bisa_dipratinjau' => $memilikiFile && $materi->bisa_dipratinjau,
+                'preview_url' => $memilikiFile
+                    ? route('dashboard.siswa.tugas-materi.materi.preview', $materi)
+                    : null,
+                'unduh_url' => $memilikiFile
+                    ? route('dashboard.siswa.tugas-materi.materi.unduh', $materi)
+                    : null,
+            ],
+        ]);
+    }
+
+    public function previewMateri(Request $request, Materi $materi)
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanMateriUntukSiswa($materi, $siswa);
+
+        return $this->responseFileMateri($materi, false);
+    }
+
+    public function unduhMateri(Request $request, Materi $materi)
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanMateriUntukSiswa($materi, $siswa);
+
+        return $this->responseFileMateri($materi, true);
+    }
+
+    public function previewTugas(Request $request, Tugas $tugas)
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanTugasUntukSiswa($tugas, $siswa);
+
+        return $this->responseFileTugas($tugas, false);
+    }
+
+    public function unduhTugas(Request $request, Tugas $tugas)
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanTugasUntukSiswa($tugas, $siswa);
+
+        return $this->responseFileTugas($tugas, true);
+    }
+
+    public function kumpulkanTugas(Request $request, Tugas $tugas): RedirectResponse
+    {
+        $siswa = $this->siswa($request);
+        $this->pastikanTugasUntukSiswa($tugas, $siswa);
+
+        $data = $request->validate([
+            'jawaban' => ['required', 'string', 'max:5000'],
+        ], [
+            'jawaban.required' => 'Jawaban atau catatan pengumpulan wajib diisi.',
+            'jawaban.max' => 'Jawaban atau catatan pengumpulan maksimal 5000 karakter.',
+        ]);
+
+        PengumpulanTugas::updateOrCreate(
+            ['tugas_id' => $tugas->id, 'user_id' => $siswa->id],
+            [
+                'dikumpulkan_at' => now(),
+                'jawaban' => trim($data['jawaban']),
+            ]
+        );
+
+        return redirect()
+            ->route('dashboard.siswa.tugas-materi.index', ['tab' => 'tugas'])
+            ->with('success', 'Tugas berhasil dikumpulkan.');
+    }
+
     public function rapor(Request $request): View
     {
         $siswa = $this->siswa($request);
         $periode = $this->periode($request);
 
+        return view('dashboard.siswa.rapor.index', $this->dataRapor($siswa, $periode));
+    }
+
+    public function exportRapor(Request $request): Response|JsonResponse
+    {
+        $siswa = $this->siswa($request);
+        $periode = $this->periode($request);
+        $data = $this->dataRapor($siswa, $periode);
+
+        if ($data['nilai']->isEmpty()) {
+            $pesan = 'Rapor belum tersedia untuk '.$data['periodeLabel'].'.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['status' => 'error', 'message' => $pesan], 422);
+            }
+
+            return redirect()
+                ->route('dashboard.siswa.rapor.index', $data['periode'])
+                ->with('error', $pesan);
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('dashboard.siswa.rapor.pdf', $data)
+            ->setPaper('a4', 'portrait');
+
+        $namaSiswa = $this->segmenNamaFile((string) $siswa->name, 'Siswa');
+        $kelas = $this->segmenNamaFile((string) ($siswa->kelas ?? 'Kelas'), 'Kelas');
+        if (filled($siswa->jurusan)) {
+            $kelas .= '-'.$this->segmenNamaFile((string) $siswa->jurusan, '');
+        }
+        $kelas = trim($kelas, '-');
+        $tahun = str_replace('/', '-', $data['periode']['tahun_ajaran']);
+        $semester = $this->segmenNamaFile($data['periode']['semester'], 'Semester');
+        $namaFile = 'Rapor_'.$namaSiswa.'_'.$kelas.'_'.$tahun.'_'.$semester.'.pdf';
+
+        return $pdf->download($namaFile);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function dataRapor(User $siswa, array $periode): array
+    {
         $nilai = $this->statistik->nilaiSiswa($siswa)
             ->filter(fn (Nilai $n) => $n->tahun_ajaran === $periode['tahun_ajaran'] && $n->semester === $periode['semester'])
             ->values();
@@ -139,9 +348,6 @@ class AkademikController extends Controller
         $total = $nilai->count();
         $tuntas = $nilai->filter(fn (Nilai $n) => $n->tuntas())->count();
 
-        // Periode yang diminta lewat URL tetap harus muncul di select, walau
-        // belum pernah dipakai pada data nilai mana pun. Tanpa ini, halaman
-        // menampilkan periode lain sementara pilihan form menunjuk periode lain.
         $tahunAjarans = $this->statistik->tahunAjaranTersedia();
 
         if (! in_array($periode['tahun_ajaran'], $tahunAjarans, true)) {
@@ -153,7 +359,7 @@ class AkademikController extends Controller
             );
         }
 
-        return view('dashboard.siswa.rapor.index', [
+        return [
             'siswa' => $siswa,
             'periode' => $periode,
             'periodeLabel' => Periode::label($periode['tahun_ajaran'], $periode['semester']),
@@ -167,7 +373,17 @@ class AkademikController extends Controller
                 'belum_tuntas' => $total - $tuntas,
                 'persen_tuntas' => $total > 0 ? (int) round($tuntas / $total * 100) : null,
             ],
-        ]);
+        ];
+    }
+
+    protected function segmenNamaFile(string $nilai, string $fallback): string
+    {
+        $nilai = Str::ascii($nilai);
+        $nilai = preg_replace('/[^\pL\pN]+/u', '-', $nilai) ?? '';
+        $nilai = trim($nilai, '-');
+        $nilai = preg_replace('/-+/', '-', $nilai) ?? $nilai;
+
+        return $nilai !== '' ? $nilai : $fallback;
     }
 
     public function riwayat(Request $request): View
@@ -258,6 +474,26 @@ class AkademikController extends Controller
         }
 
         return (int) max(0, min(90, (int) (floor((float) $terendah / 10) * 10) - 10));
+    }
+
+    protected function pastikanTugasUntukSiswa(Tugas $tugas, User $siswa): void
+    {
+        $boleh = $this->infoSiswa->tugas($siswa)
+            ->contains(fn (Tugas $item): bool => (int) $item->id === (int) $tugas->id);
+
+        if (! $boleh) {
+            abort(404);
+        }
+    }
+
+    protected function pastikanMateriUntukSiswa(Materi $materi, User $siswa): void
+    {
+        $boleh = $this->infoSiswa->materi($siswa)
+            ->contains(fn (Materi $item): bool => (int) $item->id === (int) $materi->id);
+
+        if (! $boleh) {
+            abort(404);
+        }
     }
 
     protected function siswa(Request $request): User

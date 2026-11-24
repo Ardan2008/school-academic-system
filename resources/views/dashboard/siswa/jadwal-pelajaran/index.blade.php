@@ -4,18 +4,48 @@
 @section('subtitle', 'Dashboard Siswa')
 
 @section('content')
-    <div id="jadwal-page">
+    <x-dashboard.animations />
 
-        <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            @if (filled($siswa->kelas))
-                <span class="inline-flex max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-medium text-primary-70">
-                    <x-lucide-school class="h-4 w-4 shrink-0" />
-                    <span class="truncate" title="Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif">
-                        Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif
+    <div id="jadwal-page" data-dashboard>
+        @php
+            $catatanPerhatian = $jadwalPerluPerhatian
+                ->flatMap(fn ($baris) => $baris->infoWaktu($konfigurasiJam)['catatan'])
+                ->filter()
+                ->unique()
+                ->values()
+                ->take(4);
+        @endphp
+
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div class="flex flex-wrap items-center gap-2">
+                @if (filled($siswa->kelas))
+                    <span class="inline-flex max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-medium text-primary-70">
+                        <x-lucide-school class="h-4 w-4 shrink-0" />
+                        <span class="truncate" title="Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif">
+                            Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif
+                        </span>
                     </span>
+                @endif
+
+                <span class="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-medium text-slate-600">
+                    <x-lucide-calendar-days class="h-4 w-4 shrink-0 text-slate-400" />
+                    {{ \App\Support\Periode::label($periode['tahun_ajaran'], $periode['semester']) }}
                 </span>
-            @endif
+            </div>
         </div>
+
+        @if ($catatanPerhatian->isNotEmpty())
+            <div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-800">
+                <p class="font-semibold">
+                    Ada {{ $jadwalPerluPerhatian->count() }} jadwal yang mengikuti konfigurasi jam belajar terbaru.
+                </p>
+                <ul class="mt-1.5 list-disc space-y-0.5 pl-4">
+                    @foreach ($catatanPerhatian as $catatan)
+                        <li>{{ $catatan }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
 
         @if (blank($siswa->kelas))
             {{-- Siswa belum punya kelas: jadwal tidak bisa ditentukan. --}}
@@ -58,7 +88,7 @@
                 ];
             @endphp
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4" data-reveal>
                 @foreach ($stats as $stat)
                     @php
                         $statPill = $statTone[$stat['key']][0] ?? 'bg-blue-100 text-primary-60';
@@ -71,6 +101,9 @@
                         :tone="$statPill"
                         :accent="$statAccent"
                         :stat-key="$stat['key']"
+                        :value-class="$stat['key'] === 'jam_belajar'
+                            ? 'text-base leading-tight tracking-tight whitespace-nowrap sm:text-lg xl:text-lg'
+                            : ''"
                         layout="stacked"
                     />
                 @endforeach
@@ -110,7 +143,7 @@
 
             <div class="mt-5 space-y-5 sm:mt-6">
                 @forelse ($jadwal as $namaHari => $items)
-                    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60">
+                    <div class="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60" data-reveal>
 
                         {{-- Kepala hari --}}
                         <div class="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3.5 sm:px-5">
@@ -148,10 +181,15 @@
                                     @foreach ($items as $i => $baris)
                                         <tr class="transition hover:bg-blue-50/40">
                                             <td class="px-4 py-3.5 text-center text-xs text-slate-500">{{ $i + 1 }}</td>
+                                            @php($waktu = $baris->infoWaktu($konfigurasiJam))
                                             <td class="px-4 py-3.5">
-                                                <span class="inline-flex items-center gap-1.5 rounded-lg bg-primary-10 px-2.5 py-1 text-xs font-medium tabular-nums text-primary-70">
+                                                <span @class([
+                                                    'inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums',
+                                                    'bg-primary-10 text-primary-70' => $waktu['catatan'] === [],
+                                                    'bg-amber-50 text-amber-700' => $waktu['catatan'] !== [],
+                                                ]) title="{{ implode(' ', $waktu['catatan']) }}">
                                                     <x-lucide-clock class="h-3.5 w-3.5" />
-                                                    {{ $baris->jamLabel() }}
+                                                    {{ $waktu['label'] }}
                                                 </span>
                                             </td>
                                             <td class="px-4 py-3.5 font-medium text-slate-900">
@@ -177,9 +215,14 @@
                             @foreach ($items as $baris)
                                 <div class="flex items-start justify-between gap-3 px-4 py-3.5">
                                     <div class="min-w-0">
-                                        <p class="inline-flex items-center gap-1.5 text-xs font-medium tabular-nums text-primary-70">
+                                        @php($waktu = $baris->infoWaktu($konfigurasiJam))
+                                        <p @class([
+                                            'inline-flex items-center gap-1.5 text-xs font-medium tabular-nums',
+                                            'text-primary-70' => $waktu['catatan'] === [],
+                                            'text-amber-700' => $waktu['catatan'] !== [],
+                                        ]) title="{{ implode(' ', $waktu['catatan']) }}">
                                             <x-lucide-clock class="h-3.5 w-3.5" />
-                                            {{ $baris->jamLabel() }}
+                                            {{ $waktu['label'] }}
                                         </p>
                                         <p class="mt-1 truncate font-medium text-slate-900" title="{{ $baris->mataPelajaran?->nama ?? '—' }}">
                                             {{ $baris->mataPelajaran?->nama ?? '—' }}

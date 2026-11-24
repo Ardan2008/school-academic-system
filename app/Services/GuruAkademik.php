@@ -20,39 +20,49 @@ use Illuminate\Support\Collection;
  */
 class GuruAkademik
 {
-    public function __construct(private readonly StatistikNilai $statistik) {}
+    public function __construct(
+        private readonly StatistikNilai $statistik,
+        private readonly PenugasanMengajarService $penugasan,
+    ) {}
 
     /**
      * @return Collection<int, MataPelajaran>
      */
     public function mapelDiampu(User $guru): Collection
     {
-        return $this->statistik->mapelDiampu($guru);
+        return $this->penugasan->mapelDiampu($guru);
+    }
+
+    public function sudahDiatur(User $guru): bool
+    {
+        return $this->penugasan->sudahDiatur($guru);
     }
 
     /**
-     * Pasangan mata pelajaran dan rombel yang boleh dikelola guru. Kalau guru
-     * belum punya jadwal maupun nilai, semua rombel siswa aktif dipakai sebagai
-     * cadangan supaya fitur tetap bisa dipakai sebelum admin mengisi jadwal.
+     * Pasangan mata pelajaran dan rombel yang boleh dikelola guru. Mata
+     * pelajaran yang belum punya pasangan eksplisit memakai rombel siswa aktif
+     * sebagai cadangan supaya semua mapel yang diampu tetap bisa dikelola.
      *
      * @return Collection<int, array{mata_pelajaran_id: int, kelas: string, jurusan: string}>
      */
     public function pasanganMapelRombel(User $guru): Collection
     {
         $pasangan = $this->pasanganEksplisit($guru);
+        $mapelSudahAda = $pasangan->pluck('mata_pelajaran_id')->unique()->all();
+        $mapelIds = $this->statistik->mapelIdsDiampu($guru);
+        $rombel = $this->rombelSiswaAktif();
 
-        if ($pasangan->isEmpty()) {
-            $mapelIds = $this->statistik->mapelIdsDiampu($guru);
-            $rombel = $this->rombelSiswaAktif();
+        foreach ($mapelIds as $mapelId) {
+            if (in_array($mapelId, $mapelSudahAda, true)) {
+                continue;
+            }
 
-            foreach ($mapelIds as $mapelId) {
-                foreach ($rombel as $item) {
-                    $pasangan->push([
-                        'mata_pelajaran_id' => $mapelId,
-                        'kelas' => $item['kelas'],
-                        'jurusan' => $item['jurusan'],
-                    ]);
-                }
+            foreach ($rombel as $item) {
+                $pasangan->push([
+                    'mata_pelajaran_id' => $mapelId,
+                    'kelas' => $item['kelas'],
+                    'jurusan' => $item['jurusan'],
+                ]);
             }
         }
 
@@ -68,6 +78,12 @@ class GuruAkademik
      */
     public function pasanganEksplisit(User $guru): Collection
     {
+        $ditugaskan = $this->penugasan->pasangan($guru);
+
+        if ($this->penugasan->sudahDiatur($guru)) {
+            return $this->rapikan($ditugaskan);
+        }
+
         $mapelIds = $this->statistik->mapelIdsDiampu($guru);
 
         if ($mapelIds === []) {
@@ -148,6 +164,11 @@ class GuruAkademik
     public function bolehMengajarEksplisit(User $guru, int $mapelId, string $kelas, ?string $jurusan = null): bool
     {
         return $this->cocokPenugasan($this->pasanganEksplisit($guru), $mapelId, $kelas, $jurusan);
+    }
+
+    public function cocokPasangan(Collection $pasangan, int $mapelId, string $kelas, ?string $jurusan = null): bool
+    {
+        return $this->cocokPenugasan($pasangan, $mapelId, $kelas, $jurusan);
     }
 
     /**

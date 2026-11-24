@@ -236,4 +236,67 @@ class GuruManagementTest extends TestCase
             ])
             ->assertNotFound();
     }
+
+    public function test_seluruh_data_guru_tersedia_pada_pemuatan_awal(): void
+    {
+        $pertama = $this->guru([
+            'name' => 'Guru Awal Pertama',
+            'nip' => '1101',
+            'email' => 'guru.pertama@example.com',
+        ]);
+        $kedua = $this->guru([
+            'name' => 'Guru Awal Kedua',
+            'nip' => '1102',
+            'email' => 'guru.kedua@example.com',
+        ]);
+        $tanpaPenugasan = $this->guru([
+            'name' => 'Guru Awal Tanpa Penugasan',
+            'nip' => '1103',
+            'email' => 'guru.tanpa@example.com',
+            'penugasan_diatur' => true,
+        ]);
+
+        $html = $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.data-guru.index'))
+            ->assertOk()
+            ->assertSee($pertama->name)
+            ->assertSee($kedua->name)
+            ->assertSee($tanpaPenugasan->name)
+            ->assertViewHas('guruData', function (array $data) use ($pertama, $kedua, $tanpaPenugasan): bool {
+                $nama = collect($data['guru'])->pluck('nama')->all();
+                $baris = collect($data['guru'])->firstWhere('id', $tanpaPenugasan->id);
+
+                return count($nama) === 3
+                    && in_array($pertama->name, $nama, true)
+                    && in_array($kedua->name, $nama, true)
+                    && $baris !== null
+                    && $baris['mapel'] === null
+                    && $baris['mapel_list'] === [];
+            })
+            ->getContent();
+
+        $this->assertStringContainsString('"nama":"'.$pertama->name.'"', $html);
+        $this->assertStringContainsString('"nama":"'.$kedua->name.'"', $html);
+    }
+
+    public function test_kontrol_modal_penugasan_diikat_dari_root_modal(): void
+    {
+        $sumber = (string) file_get_contents(resource_path('views/dashboard/admin/data-guru/index.blade.php'));
+
+        $this->assertStringContainsString("document.getElementById('penugasan-modal')", $sumber);
+        $this->assertStringContainsString("document.getElementById('penugasan-form')", $sumber);
+        $this->assertStringNotContainsString("$('#penugasan-modal')", $sumber);
+        $this->assertStringNotContainsString("$('#penugasan-form')", $sumber);
+
+        foreach (['simpan', 'tutup', 'batal'] as $kontrol) {
+            $this->assertStringContainsString(
+                "penugasanModal.querySelector('[data-penugasan-{$kontrol}]')",
+                $sumber
+            );
+            $this->assertStringNotContainsString(
+                "penugasanForm.querySelector('[data-penugasan-{$kontrol}]')",
+                $sumber
+            );
+        }
+    }
 }

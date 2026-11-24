@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Models\Concerns\MilikRombel;
 use App\Services\NotifikasiAkademikService;
+use App\Support\FileMateri;
 use App\Support\Waktu;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +29,11 @@ class Tugas extends Model
         'guru_id',
         'judul',
         'deskripsi',
+        'file_path',
+        'nama_file',
+        'mime_type',
+        'ekstensi',
+        'ukuran_bytes',
         'deadline',
     ];
 
@@ -36,7 +43,23 @@ class Tugas extends Model
             'mata_pelajaran_id' => 'integer',
             'guru_id' => 'integer',
             'deadline' => 'datetime',
+            'ukuran_bytes' => 'integer',
         ];
+    }
+
+    protected function ukuranFile(): Attribute
+    {
+        return Attribute::get(fn () => FileMateri::ukuran($this->ukuran_bytes));
+    }
+
+    protected function formatFile(): Attribute
+    {
+        return Attribute::get(fn () => FileMateri::format($this->ekstensi));
+    }
+
+    protected function bisaDipratinjau(): Attribute
+    {
+        return Attribute::get(fn () => FileMateri::bisaDipratinjau($this->mime_type));
     }
 
     protected static function booted(): void

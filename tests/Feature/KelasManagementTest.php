@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Jurusan;
 use App\Models\KelasRombel;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -31,14 +32,24 @@ class KelasManagementTest extends TestCase
         return User::factory()->guru()->create(['name' => $nama]);
     }
 
+    protected function jurusanId(string $nama = 'Rekayasa Perangkat Lunak'): int
+    {
+        return (int) Jurusan::firstOrCreate(['nama' => $nama])->id;
+    }
+
     /**
+     * @param  array<string, mixed>  $override
      * @return array<string, mixed>
      */
     protected function payload(array $override = []): array
     {
+        if (isset($override['jurusan']) && ! is_numeric($override['jurusan'])) {
+            $override['jurusan'] = $this->jurusanId((string) $override['jurusan']);
+        }
+
         return array_merge([
             'kelas' => '12-1',
-            'jurusan' => 'Rekayasa Perangkat Lunak',
+            'jurusan' => $this->jurusanId(),
             'wali_kelas_id' => null,
         ], $override);
     }
@@ -195,6 +206,48 @@ class KelasManagementTest extends TestCase
         $this->assertSame('12', $tersimpan['tingkat']);
         $this->assertSame('2', $tersimpan['rombel']);
         $this->assertSame($guru->name, $tersimpan['wali_kelas']);
+    }
+
+    public function test_form_kelas_mengambil_pilihan_jurusan_dari_database(): void
+    {
+        $rpl = Jurusan::create(['nama' => 'Rekayasa Perangkat Lunak']);
+        $tkj = Jurusan::create(['nama' => 'Teknik Komputer Jaringan']);
+
+        $this->assertSame([
+            ['id' => $rpl->id, 'nama' => 'Rekayasa Perangkat Lunak'],
+            ['id' => $tkj->id, 'nama' => 'Teknik Komputer Jaringan'],
+        ], $this->kelasData()['jurusan_opsi']);
+
+        $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.data-kelas.index'))
+            ->assertOk()
+            ->assertSee('id="km-jurusan"', false)
+            ->assertSee('value="'.$rpl->id.'">Rekayasa Perangkat Lunak</option>', false)
+            ->assertSee('Pilih jurusan yang sudah terdaftar.', false);
+    }
+
+    public function test_form_kelas_menampilkan_pesan_ketika_belum_ada_jurusan(): void
+    {
+        $this->assertSame([], $this->kelasData()['jurusan_opsi']);
+
+        $this->actingAs($this->admin())
+            ->get(route('dashboard.admin.data-kelas.index'))
+            ->assertOk()
+            ->assertSee('id="km-jurusan" name="jurusan" required disabled', false)
+            ->assertSee('Data jurusan belum tersedia', false)
+            ->assertSee('Belum ada jurusan terdaftar.', false);
+    }
+
+    public function test_penyimpanan_kelas_menolak_jurusan_yang_tidak_terdaftar(): void
+    {
+        Jurusan::create(['nama' => 'Rekayasa Perangkat Lunak']);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('dashboard.admin.data-kelas.store'), $this->payload(['jurusan' => 999999]))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors('jurusan');
+
+        $this->assertDatabaseMissing('kelas', ['kelas' => '12-1']);
     }
 
     public function test_kelas_sama_boleh_terdaftar_di_jurusan_berbeda(): void

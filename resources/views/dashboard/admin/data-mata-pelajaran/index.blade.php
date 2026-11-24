@@ -36,7 +36,7 @@
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-2">
                         <button type="button" id="mapel-add"
-                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-xs font-medium text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none sm:text-sm">
+                            class="inline-flex h-10 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-primary-60 px-4 text-sm font-semibold text-white transition hover:bg-primary-70 sm:h-9 sm:flex-none">
                             <x-lucide-plus class="h-4 w-4" />
                             Tambah Mapel
                         </button>
@@ -674,11 +674,11 @@
 
                 return `
                     <div class="inline-flex items-center gap-2">
-                        <button type="button" data-action="edit" data-id="${m.id}" aria-label="Ubah ${esc(labelMapel(m))}"
+                        <button type="button" data-action="edit" data-id="${m.id}" aria-label="Ubah ${esc(labelMapel(m))}" title="Ubah ${esc(labelMapel(m))}"
                             class="mapel-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_EDIT}</button>
                         <button type="button" data-action="delete" data-id="${m.id}" aria-label="Hapus ${esc(labelMapel(m))}"
-                            ${kunci ? 'disabled title="Mata pelajaran ini masih diampu guru, jadi belum bisa dihapus."' : ''}
-                            class="mapel-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-red-50 hover:text-red-500 active:scale-90">${ICON_DEL}</button>
+                            ${kunci ? `disabled title="Hapus ${esc(labelMapel(m))} - Mata pelajaran ini masih diampu guru, jadi belum bisa dihapus."` : `title="Hapus ${esc(labelMapel(m))}"`}
+                            class="mapel-act flex h-8 w-8 items-center justify-center rounded-lg border border-red-300 bg-white text-red-500 transition hover:bg-red-50 active:scale-90">${ICON_DEL}</button>
                     </div>`;
             };
 

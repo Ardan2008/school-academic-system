@@ -4,7 +4,9 @@
 @section('subtitle', 'Dashboard Siswa')
 
 @section('content')
-    <div id="rapor-page">
+    <x-dashboard.animations />
+
+    <div id="rapor-page" data-dashboard>
 
         {{-- Judul halaman + identitas rombel siswa --}}
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -13,12 +15,12 @@
                 <p class="mt-1 text-sm text-slate-500">Hasil belajar Anda pada periode yang dipilih.</p>
             </div>
 
-            <div class="flex items-center gap-2 print:hidden">
+            <div class="flex flex-wrap items-center gap-2 print:hidden">
                 @if (filled($siswa->kelas))
-                    <span class="inline-flex w-fit items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-medium text-primary-70">
+                    <span class="inline-flex w-fit max-w-full items-center gap-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2 text-xs font-medium text-primary-70">
                         <x-lucide-school class="h-4 w-4 shrink-0" />
-                        <span class="truncate" title="Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif">
-                            Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) · {{ $siswa->jurusan }}@endif
+                        <span class="truncate" title="Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) - {{ $siswa->jurusan }}@endif">
+                            Kelas {{ $siswa->kelas }}@if (filled($siswa->jurusan)) - {{ $siswa->jurusan }}@endif
                         </span>
                     </span>
                 @endif
@@ -29,6 +31,19 @@
                         <x-lucide-printer class="h-4 w-4" />
                         Cetak
                     </button>
+                    <button type="button" id="rapor-export" data-state="idle" aria-live="polite"
+                            data-export-url="{{ route('dashboard.siswa.rapor.export', request()->query()) }}"
+                            title="Unduh rapor periode yang dipilih dalam format PDF"
+                            class="ekspor relative inline-flex shrink-0 items-center justify-center gap-2 overflow-hidden whitespace-nowrap rounded-xl border border-primary-60 bg-primary-60 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-primary-60/25 transition hover:bg-primary-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60">
+                        <span data-ekspor-kilau class="ekspor-kilau" aria-hidden="true"></span>
+                        <x-lucide-file-down data-ekspor-ikon="idle" class="ekspor-ikon h-4 w-4" />
+                        <svg data-ekspor-ikon="muat" class="ekspor-ikon h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+                            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        <x-lucide-check data-ekspor-ikon="sukses" class="ekspor-ikon h-4 w-4" />
+                        <span data-ekspor-label>Export PDF</span>
+                    </button>
                 @endif
             </div>
         </div>
@@ -38,7 +53,7 @@
             <div class="flex flex-wrap items-end justify-between gap-2 border-b border-slate-300 pb-2">
                 <div>
                     <h2 class="text-base font-bold text-slate-900">Rapor Hasil Belajar</h2>
-                    <p class="text-xs text-slate-500">SASKANSA — Sistem Akademik Sekolah</p>
+                    <p class="text-xs text-slate-500">SASKANSA - Sistem Akademik Sekolah</p>
                 </div>
                 <p class="text-xs font-medium text-slate-600">{{ $periodeLabel }}</p>
             </div>
@@ -53,9 +68,9 @@
                         <dt class="text-slate-400">Nama</dt>
                         <dd class="truncate font-medium text-slate-800" title="{{ $siswa->name }}">{{ $siswa->name }}</dd>
                         <dt class="text-slate-400">NIS</dt>
-                        <dd class="font-medium text-slate-800">{{ $siswa->nis ?? '—' }}</dd>
+                        <dd class="font-medium text-slate-800">{{ $siswa->nis ?? '-' }}</dd>
                         <dt class="text-slate-400">Kelas</dt>
-                        <dd class="font-medium text-slate-800">{{ $siswa->kelas ?? '—' }}{{ filled($siswa->jurusan) ? ' · '.$siswa->jurusan : '' }}</dd>
+                        <dd class="font-medium text-slate-800">{{ $siswa->kelas ?? '-' }}{{ filled($siswa->jurusan) ? ' - '.$siswa->jurusan : '' }}</dd>
                     </dl>
                 </div>
 
@@ -112,7 +127,7 @@
                 ];
             @endphp
 
-            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 print:hidden">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4 print:hidden" data-reveal>
                 @foreach ($stats as $stat)
                     @php
                         $statPill = $statTone[$stat['key']][0] ?? 'bg-blue-100 text-primary-60';
@@ -132,7 +147,7 @@
             </div>
 
             {{-- Daftar nilai periode terpilih --}}
-            <div class="mt-5 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60 sm:mt-6">
+            <div class="mt-5 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-md shadow-slate-200/60 sm:mt-6" data-reveal>
                 <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3.5 sm:px-5">
                     <div class="flex items-center gap-3">
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-60 text-white">
@@ -140,7 +155,7 @@
                         </span>
                         <div class="min-w-0">
                             <h3 class="text-sm font-semibold text-slate-900">Daftar Nilai</h3>
-                            <p class="text-xs text-slate-500">{{ $ringkasan['jumlah_mapel'] }} mata pelajaran · {{ $ringkasan['tuntas'] }} tuntas</p>
+                            <p class="text-xs text-slate-500">{{ $ringkasan['jumlah_mapel'] }} mata pelajaran - {{ $ringkasan['tuntas'] }} tuntas</p>
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-100">
@@ -165,7 +180,7 @@
                             @foreach ($nilai as $i => $baris)
                                 <tr class="transition hover:bg-blue-50/40">
                                     <td class="px-4 py-3.5 text-center text-xs text-slate-500">{{ $i + 1 }}</td>
-                                    <td class="px-4 py-3.5 font-medium text-slate-900">{{ $baris->mataPelajaran?->nama ?? '—' }}</td>
+                                    <td class="px-4 py-3.5 font-medium text-slate-900">{{ $baris->mataPelajaran?->nama ?? '-' }}</td>
                                     <td class="px-4 py-3.5 text-center tabular-nums text-slate-600">{{ $baris->kkm }}</td>
                                     <td class="px-4 py-3.5 text-center text-base font-bold tabular-nums text-slate-900">{{ $baris->nilai }}</td>
                                     <td class="px-4 py-3.5">
@@ -198,7 +213,7 @@
                     @foreach ($nilai as $baris)
                         <div class="flex items-start justify-between gap-3 px-4 py-3.5">
                             <div class="min-w-0">
-                                <p class="truncate font-medium text-slate-900" title="{{ $baris->mataPelajaran?->nama ?? '—' }}">{{ $baris->mataPelajaran?->nama ?? '—' }}</p>
+                                <p class="truncate font-medium text-slate-900" title="{{ $baris->mataPelajaran?->nama ?? '-' }}">{{ $baris->mataPelajaran?->nama ?? '-' }}</p>
                                 <span @class([
                                     'mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
                                     'bg-emerald-50 text-emerald-600' => $baris->tuntas(),
@@ -224,8 +239,175 @@
     </div>
 @endsection
 
+@push('scripts')
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tombolExport = document.getElementById('rapor-export');
+            if (!tombolExport) return;
+
+            const labelExport = tombolExport.querySelector('[data-ekspor-label]');
+            const LABEL_AWAL = labelExport ? labelExport.textContent.trim() : 'Export PDF';
+            const KEMBALI_SUKSES_MS = 2400;
+
+            let exportState = 'idle';
+            let exportTimer = null;
+
+            const setExportState = (state, text) => {
+                clearTimeout(exportTimer);
+                exportState = state;
+                tombolExport.dataset.state = state;
+                tombolExport.disabled = state === 'muat';
+                if (text && labelExport) labelExport.textContent = text;
+            };
+
+            const alertError = (title, text) => {
+                if (window.Swal) {
+                    window.Swal.fire({ icon: 'error', title, text, confirmButtonText: 'Coba Lagi' });
+                } else {
+                    window.alert(text);
+                }
+            };
+
+            const namaBerkas = (disposisi) => {
+                if (!disposisi) return 'Rapor.pdf';
+                const utf = disposisi.match(/filename\*=UTF-8''([^;]+)/i);
+                if (utf && utf[1]) {
+                    try { return decodeURIComponent(utf[1]); } catch (_) { return utf[1]; }
+                }
+                const biasa = /filename="?([^";]+)"?/i.exec(disposisi);
+                return biasa ? biasa[1] : 'Rapor.pdf';
+            };
+
+            const unduhBlob = (blob, nama) => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = nama;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            };
+
+            tombolExport.addEventListener('click', async () => {
+                if (exportState === 'muat') return;
+
+                const exportUrl = tombolExport.dataset.exportUrl;
+                if (!exportUrl) return;
+
+                setExportState('muat', 'Menyiapkan PDF…');
+
+                try {
+                    const respons = await fetch(exportUrl, {
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: {
+                            'Accept': 'application/pdf, application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    const tipe = respons.headers.get('Content-Type') || '';
+
+                    if (!respons.ok || !tipe.includes('pdf')) {
+                        let pesan = 'Export PDF gagal. Silakan coba lagi.';
+                        if (tipe.includes('application/json')) {
+                            const data = await respons.json().catch(() => null);
+                            if (data?.message) pesan = data.message;
+                        } else if (respons.status === 401 || respons.status === 419) {
+                            pesan = 'Sesi Anda sudah habis. Muat ulang halaman lalu coba lagi.';
+                        } else if (respons.status === 403) {
+                            pesan = 'Anda tidak punya akses untuk mengunduh data ini.';
+                        } else if (respons.status === 422) {
+                            pesan = 'Rapor belum tersedia untuk periode yang dipilih.';
+                        }
+                        throw new Error(pesan);
+                    }
+
+                    const blob = await respons.blob();
+                    if (!blob || blob.size === 0) {
+                        throw new Error('Export PDF gagal. Silakan coba lagi.');
+                    }
+
+                    unduhBlob(blob, namaBerkas(respons.headers.get('Content-Disposition')));
+
+                    setExportState('sukses', 'PDF berhasil diunduh');
+                    exportTimer = setTimeout(() => {
+                        setExportState('idle', LABEL_AWAL);
+                    }, KEMBALI_SUKSES_MS);
+                } catch (galat) {
+                    setExportState('idle', LABEL_AWAL);
+                    alertError('Gagal Mengunduh', galat?.message || 'Tidak dapat terhubung ke server. Silakan coba lagi.');
+                }
+            });
+        });
+    </script>
+@endpush
+
 @push('styles')
     <style>
+        /* ===== Tombol export: tiga keadaan (diam, mengunduh, berhasil) ===== */
+        .ekspor-ikon { transition: opacity .18s ease, transform .18s ease; }
+
+        .ekspor[data-state="idle"] [data-ekspor-ikon]:not([data-ekspor-ikon="idle"]),
+        .ekspor[data-state="muat"] [data-ekspor-ikon]:not([data-ekspor-ikon="muat"]),
+        .ekspor[data-state="sukses"] [data-ekspor-ikon]:not([data-ekspor-ikon="sukses"]) {
+            display: none;
+        }
+
+        .ekspor[data-state="muat"] {
+            cursor: progress;
+            translate: none;
+            box-shadow: none;
+            filter: saturate(.85);
+        }
+
+        .ekspor[data-state="muat"]:hover { transform: none; }
+        .ekspor[data-state="muat"] [data-ekspor-label] { opacity: .85; }
+
+        .ekspor[data-state="sukses"] {
+            cursor: default;
+            border-color: rgb(167 243 208);
+            background-color: rgb(236 253 245);
+            color: rgb(4 120 87);
+            translate: none;
+            box-shadow: 0 6px 14px -10px rgb(16 185 129);
+        }
+
+        .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] {
+            animation: ekspor-pop .45s cubic-bezier(.34, 1.56, .64, 1);
+        }
+
+        @keyframes ekspor-pop {
+            0%   { transform: scale(.3) rotate(-25deg); opacity: 0; }
+            60%  { transform: scale(1.18) rotate(6deg); opacity: 1; }
+            100% { transform: scale(1) rotate(0); opacity: 1; }
+        }
+
+        .ekspor-kilau {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / .75) 50%, transparent 80%);
+            transform: translateX(-100%);
+        }
+
+        .ekspor[data-state="muat"] .ekspor-kilau {
+            opacity: 1;
+            animation: ekspor-kilau 1.1s ease-in-out infinite;
+        }
+
+        @keyframes ekspor-kilau {
+            0%   { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ekspor[data-state="muat"] .ekspor-kilau { animation: none; opacity: .45; }
+            .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] { animation: none; }
+        }
+
         @page {
             margin: 10mm;
         }
@@ -235,6 +417,12 @@
             #rapor-page, #rapor-page * {
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
+            }
+
+            #rapor-page [data-reveal] {
+                opacity: 1 !important;
+                transform: none !important;
+                filter: none !important;
             }
 
             /* Kerangka dashboard disembunyikan agar tidak menyisakan celah di kertas. */

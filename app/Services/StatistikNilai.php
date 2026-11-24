@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\MataPelajaran;
 use App\Models\Nilai;
+use App\Models\PenugasanMengajar;
 use App\Models\User;
 use App\Support\Kelas;
 use App\Support\Periode;
@@ -24,6 +25,8 @@ use Illuminate\Support\Collection;
  */
 class StatistikNilai
 {
+    public function __construct(private readonly PenugasanMengajarService $penugasan) {}
+
     /** Batas titik pada garis perkembangan, supaya tabel nilai yang panjang tidak membuat garis penuh. */
     private const MAKS_PERIODE_PERKEMBANGAN = 12;
 
@@ -37,17 +40,7 @@ class StatistikNilai
      */
     public function mapelDiampu(User $guru): Collection
     {
-        $nama = trim((string) $guru->mata_pelajaran);
-
-        if ($nama === '') {
-            return collect();
-        }
-
-        return MataPelajaran::query()
-            ->orderBy('nama')
-            ->get()
-            ->filter(fn (MataPelajaran $mapel) => strcasecmp(trim((string) $mapel->nama), $nama) === 0)
-            ->values();
+        return $this->penugasan->mapelDiampu($guru);
     }
 
     /**
@@ -71,7 +64,8 @@ class StatistikNilai
         ?string $semester = null,
         ?string $kelas = null,
         ?string $jurusan = null,
-        ?array $mapelIds = null
+        ?array $mapelIds = null,
+        ?User $guru = null
     ): Builder {
         $query = Nilai::query();
 
@@ -100,6 +94,27 @@ class StatistikNilai
             $query->whereIn('mata_pelajaran_id', $mapelIds);
         }
 
+        if ($guru !== null && $this->penugasan->sudahDiatur($guru)) {
+            $pasangan = $this->penugasan->pasangan($guru);
+
+            if ($pasangan->isEmpty()) {
+                return $query->whereRaw('1 = 0');
+            }
+
+            $query->where(function (Builder $sub) use ($pasangan) {
+                foreach ($pasangan as $item) {
+                    $sub->orWhere(function (Builder $kondisi) use ($item) {
+                        $kondisi->where('mata_pelajaran_id', $item['mata_pelajaran_id'])
+                            ->where('kelas', $item['kelas']);
+
+                        if ($item['jurusan'] !== '') {
+                            $kondisi->where('jurusan', $item['jurusan']);
+                        }
+                    });
+                }
+            });
+        }
+
         return $query;
     }
 
@@ -113,9 +128,10 @@ class StatistikNilai
         ?string $semester = null,
         ?string $kelas = null,
         ?string $jurusan = null,
-        ?array $mapelIds = null
+        ?array $mapelIds = null,
+        ?User $guru = null
     ): array {
-        $baris = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds)
+        $baris = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru)
             ->selectRaw('count(*) as jumlah_nilai')
             ->selectRaw('count(distinct user_id) as jumlah_siswa')
             ->selectRaw('count(distinct mata_pelajaran_id) as jumlah_mapel')
@@ -147,9 +163,10 @@ class StatistikNilai
         ?string $tahunAjaran = null,
         ?string $semester = null,
         ?array $mapelIds = null,
-        ?string $jurusan = null
+        ?string $jurusan = null,
+        ?User $guru = null
     ): Collection {
-        return $this->queryNilai($tahunAjaran, $semester, null, $jurusan, $mapelIds)
+        return $this->queryNilai($tahunAjaran, $semester, null, $jurusan, $mapelIds, $guru)
             ->selectRaw('kelas, jurusan')
             ->selectRaw('count(*) as jumlah_nilai')
             ->selectRaw('avg(nilai) as rata_rata')
@@ -177,9 +194,10 @@ class StatistikNilai
         ?string $semester = null,
         ?string $kelas = null,
         ?string $jurusan = null,
-        ?array $mapelIds = null
+        ?array $mapelIds = null,
+        ?User $guru = null
     ): Collection {
-        return $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds)
+        return $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru)
             ->selectRaw('kelas, jurusan')
             ->selectRaw('count(*) as jumlah_nilai')
             ->selectRaw('count(distinct user_id) as jumlah_siswa')
@@ -208,10 +226,11 @@ class StatistikNilai
         ?string $jurusan = null,
         ?array $mapelIds = null,
         int $perHalaman = 5,
-        string $namaHalaman = 'kelas_page'
+        string $namaHalaman = 'kelas_page',
+        ?User $guru = null
     ): LengthAwarePaginator {
         return $this->bagiHalaman(
-            $this->rekapPerKelas($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds),
+            $this->rekapPerKelas($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru),
             $perHalaman,
             $namaHalaman
         );
@@ -232,10 +251,11 @@ class StatistikNilai
         ?string $jurusan = null,
         ?array $mapelIds = null,
         int $perHalaman = 5,
-        string $namaHalaman = 'mapel_page'
+        string $namaHalaman = 'mapel_page',
+        ?User $guru = null
     ): LengthAwarePaginator {
         return $this->bagiHalaman(
-            $this->rekapPerMataPelajaran($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds),
+            $this->rekapPerMataPelajaran($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru),
             $perHalaman,
             $namaHalaman
         );
@@ -279,9 +299,10 @@ class StatistikNilai
     public function perkembanganPeriode(
         ?string $kelas = null,
         ?string $jurusan = null,
-        ?array $mapelIds = null
+        ?array $mapelIds = null,
+        ?User $guru = null
     ): array {
-        $baris = $this->queryNilai(null, null, $kelas, $jurusan, $mapelIds)
+        $baris = $this->queryNilai(null, null, $kelas, $jurusan, $mapelIds, $guru)
             ->selectRaw('tahun_ajaran, semester')
             ->selectRaw('avg(nilai) as rata_rata')
             ->groupBy('tahun_ajaran', 'semester')
@@ -319,9 +340,9 @@ class StatistikNilai
      *
      * @return Collection<int, array{label: string, jurusan: string, tahun: string, semester: string, nilai: float}>
      */
-    public function rataPerKelasPerPeriode(?array $mapelIds = null): Collection
+    public function rataPerKelasPerPeriode(?array $mapelIds = null, ?User $guru = null): Collection
     {
-        return $this->queryNilai(null, null, null, null, $mapelIds)
+        return $this->queryNilai(null, null, null, null, $mapelIds, $guru)
             ->selectRaw('kelas, jurusan, tahun_ajaran, semester')
             ->selectRaw('avg(nilai) as rata_rata')
             ->groupBy('kelas', 'jurusan', 'tahun_ajaran', 'semester')
@@ -350,9 +371,10 @@ class StatistikNilai
         ?string $tahunAjaran = null,
         ?string $semester = null,
         ?array $mapelIds = null,
-        ?string $jurusan = null
+        ?string $jurusan = null,
+        ?User $guru = null
     ): Collection {
-        return $this->rataPerKelas($tahunAjaran, $semester, $mapelIds, $jurusan)
+        return $this->rataPerKelas($tahunAjaran, $semester, $mapelIds, $jurusan, $guru)
             ->sortByDesc('rata_rata')
             ->values()
             ->map(fn (array $row) => [
@@ -372,9 +394,10 @@ class StatistikNilai
         ?string $semester = null,
         ?string $kelas = null,
         ?string $jurusan = null,
-        ?array $mapelIds = null
+        ?array $mapelIds = null,
+        ?User $guru = null
     ): Collection {
-        $baris = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds)
+        $baris = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru)
             ->join('mata_pelajaran', 'mata_pelajaran.id', '=', 'nilai.mata_pelajaran_id')
             ->selectRaw('mata_pelajaran.kode as kode')
             ->selectRaw('mata_pelajaran.nama as nama')
@@ -400,27 +423,53 @@ class StatistikNilai
      */
     public function guruPengampu(): array
     {
-        return User::query()
+        $diatur = PenugasanMengajar::query()
+            ->join('users', 'users.id', '=', 'penugasan_mengajar.guru_id')
+            ->join('mata_pelajaran', 'mata_pelajaran.id', '=', 'penugasan_mengajar.mata_pelajaran_id')
+            ->where('users.role', 'guru')
+            ->where('users.penugasan_diatur', true)
+            ->get(['users.name as guru', 'mata_pelajaran.nama as mapel']);
+
+        $legacy = User::query()
             ->where('role', 'guru')
+            ->where('penugasan_diatur', false)
             ->whereNotNull('mata_pelajaran')
             ->where('mata_pelajaran', '!=', '')
-            ->get(['name', 'mata_pelajaran'])
-            ->groupBy(fn ($guru) => trim((string) $guru->mata_pelajaran))
-            ->map(fn (Collection $guru) => $guru->pluck('name')->sort()->implode(', '))
+            ->get(['name as guru', 'mata_pelajaran as mapel']);
+
+        return $diatur->concat($legacy)
+            ->groupBy(fn ($row) => trim((string) $row->mapel))
+            ->map(fn (Collection $baris) => $baris->pluck('guru')
+                ->map(fn ($nama) => trim((string) $nama))
+                ->filter()
+                ->unique()
+                ->sort()
+                ->implode(', '))
             ->all();
     }
 
     // Guru
 
     /**
-     * Kelas yang benar-benar diampu guru ini, diturunkan dari nilai yang pernah
-     * ia input untuk mata pelajarannya. Sistem ini tidak punya tabel pemetaan
-     * guru-ke-kelas, jadi nilai adalah satu-satunya bukti kelas yang diampu.
+     * Kelas yang benar-benar diampu guru ini. Guru yang sudah diatur mengikuti
+     * pasangan penugasan, sedangkan guru lama diturunkan dari nilai yang pernah
+     * ia input untuk mata pelajarannya.
      *
      * @return Collection<int, array{kelas: string, jurusan: string}>
      */
     public function kelasDiampu(User $guru): Collection
     {
+        if ($this->penugasan->sudahDiatur($guru)) {
+            return $this->penugasan->pasangan($guru)
+                ->map(fn (array $item) => [
+                    'kelas' => $item['kelas'],
+                    'jurusan' => $item['jurusan'],
+                ])
+                ->unique(fn (array $item) => $item['jurusan'].'|'.$item['kelas'])
+                ->sort(fn ($a, $b) => $this->bandingkanKelasJurusan($a['jurusan'], $a['kelas'], $b['jurusan'], $b['kelas']))
+                ->values();
+        }
+
         return $this->queryNilai(null, null, null, null, $this->mapelIdsDiampu($guru))
             ->selectRaw('kelas, jurusan')
             ->distinct()
@@ -448,9 +497,10 @@ class StatistikNilai
         ?string $jurusan = null,
         ?array $mapelIds = null,
         string $cari = '',
-        int $perHalaman = 10
+        int $perHalaman = 10,
+        ?User $guru = null
     ): LengthAwarePaginator {
-        $halaman = $this->siswaPunyaNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $cari)
+        $halaman = $this->siswaPunyaNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $cari, $guru)
             ->paginate(max($perHalaman, 1))
             ->withQueryString();
 
@@ -460,7 +510,8 @@ class StatistikNilai
             $semester,
             $kelas,
             $jurusan,
-            $mapelIds
+            $mapelIds,
+            $guru
         );
 
         return $halaman->through(
@@ -481,9 +532,10 @@ class StatistikNilai
         ?string $kelas = null,
         ?string $jurusan = null,
         ?array $mapelIds = null,
-        string $cari = ''
+        string $cari = '',
+        ?User $guru = null
     ): Collection {
-        $siswa = $this->siswaPunyaNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $cari)->get();
+        $siswa = $this->siswaPunyaNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $cari, $guru)->get();
 
         $nilai = $this->nilaiPerSiswa(
             $siswa->pluck('id')->all(),
@@ -491,7 +543,8 @@ class StatistikNilai
             $semester,
             $kelas,
             $jurusan,
-            $mapelIds
+            $mapelIds,
+            $guru
         );
 
         return $siswa->values()
@@ -512,9 +565,10 @@ class StatistikNilai
         ?string $kelas,
         ?string $jurusan,
         ?array $mapelIds,
-        string $cari
+        string $cari,
+        ?User $guru = null
     ): Builder {
-        $idSiswa = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds)
+        $idSiswa = $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru)
             ->select('user_id')
             ->distinct();
 
@@ -546,13 +600,14 @@ class StatistikNilai
         ?string $semester,
         ?string $kelas,
         ?string $jurusan,
-        ?array $mapelIds
+        ?array $mapelIds,
+        ?User $guru = null
     ): Collection {
         if ($idSiswa === []) {
             return collect();
         }
 
-        return $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds)
+        return $this->queryNilai($tahunAjaran, $semester, $kelas, $jurusan, $mapelIds, $guru)
             ->whereIn('user_id', $idSiswa)
             ->get()
             ->groupBy('user_id');
@@ -849,16 +904,9 @@ class StatistikNilai
      * @param  array<int, int>|null  $mapelIds
      * @return array<int, string>
      */
-    public function tahunAjaranTersedia(?array $mapelIds = null): array
+    public function tahunAjaranTersedia(?array $mapelIds = null, ?User $guru = null): array
     {
-        return Nilai::query()
-            ->when($mapelIds !== null, function (Builder $query) use ($mapelIds) {
-                if ($mapelIds === []) {
-                    return $query->whereRaw('1 = 0');
-                }
-
-                return $query->whereIn('mata_pelajaran_id', $mapelIds);
-            })
+        return $this->queryNilai(null, null, null, null, $mapelIds, $guru)
             ->distinct()
             ->pluck('tahun_ajaran')
             ->push(Periode::tahunAjaranSekarang())

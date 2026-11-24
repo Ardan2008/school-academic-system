@@ -15,5 +15,5 @@
 @endphp
 
 @section('content')
-    <x-ui.profile :user="$user" :fields="$profileFields" :password="$user->visiblePassword()" />
+    <x-ui.profile :user="$user" :fields="$profileFields" :password="$user->visiblePassword()" :edit-modal="true" />
 @endsection

@@ -2,18 +2,26 @@
 
 namespace App\Http\Controllers\Guru;
 
+use App\Http\Controllers\Concerns\MelayaniFileMateri;
 use App\Http\Controllers\Controller;
+use App\Models\MataPelajaran;
 use App\Models\Materi;
 use App\Models\PengumpulanTugas;
 use App\Models\Tugas;
 use App\Models\User;
 use App\Services\GuruAkademik;
+use App\Support\FileMateri;
 use App\Support\Kelas;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Throwable;
 
 /**
  * Pengelolaan Tugas & Materi oleh Guru.
@@ -24,6 +32,8 @@ use Illuminate\View\View;
  */
 class TugasMateriController extends Controller
 {
+    use MelayaniFileMateri;
+
     public function __construct(private readonly GuruAkademik $akademik) {}
 
     public function index(Request $request): View
@@ -61,6 +71,37 @@ class TugasMateriController extends Controller
                 ->where('guru_id', $guru->id)
                 ->find($request->integer('edit'));
         }
+
+        $mapelById = $mapel->keyBy(fn (MataPelajaran $item) => (int) $item->id);
+        $mapelDariFilter = $mapelId !== null ? $mapelById->get($mapelId) : null;
+        $mapelDariRombel = null;
+
+        if ($mapelDariFilter === null && $rombel !== null) {
+            $kandidatMapel = $pasangan
+                ->filter(fn (array $item) => $item['kelas'] === $rombel['kelas']
+                    && ($item['jurusan'] === '' || $item['jurusan'] === $rombel['jurusan']))
+                ->pluck('mata_pelajaran_id')
+                ->map(fn ($id) => (int) $id)
+                ->unique()
+                ->values();
+
+            if ($kandidatMapel->count() === 1) {
+                $mapelDariRombel = $mapelById->get($kandidatMapel->first());
+            }
+        }
+
+        $mapelKonteks = $mapelDariFilter
+            ?? $mapelDariRombel
+            ?? $mapel->first();
+
+        $mapelTugas = $editTugas !== null
+            ? $mapelById->get((int) $editTugas->mata_pelajaran_id)
+            : $mapelKonteks;
+        $mapelMateri = $editMateri !== null
+            ? $mapelById->get((int) $editMateri->mata_pelajaran_id)
+            : $mapelKonteks;
+        $bisaTugas = $mapel->isNotEmpty() && $pasangan->isNotEmpty() && $mapelTugas !== null;
+        $bisaMateri = $mapel->isNotEmpty() && $pasangan->isNotEmpty() && $mapelMateri !== null;
 
         $rombelByMapel = $pasangan
             ->groupBy('mata_pelajaran_id')
@@ -101,6 +142,10 @@ class TugasMateriController extends Controller
             'materi' => $materi,
             'editTugas' => $editTugas,
             'editMateri' => $editMateri,
+            'mapelFormTugas' => $mapelTugas,
+            'mapelFormMateri' => $mapelMateri,
+            'bisaTugas' => $bisaTugas,
+            'bisaMateri' => $bisaMateri,
             'filters' => [
                 'q' => $q,
                 'mapel_id' => $mapelId,
@@ -136,40 +181,150 @@ class TugasMateriController extends Controller
         ]);
     }
 
-    public function storeTugas(Request $request): RedirectResponse
+    public function storeTugas(Request $request): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
-        $data = $this->validasiTugas($request, $guru);
+        $data = $this->validasiTugas($request, $guru, false);
+        $file = $request->file('file');
+        $path = null;
+        $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas']);
+        $message = 'Tugas berhasil ditambahkan.';
 
-        Tugas::create($data + ['guru_id' => $guru->id]);
+        if ($file !== null) {
+            $path = $this->simpanFileLampiran($file, 'tugas');
+            $data += $this->dataFileLampiran($file, $path);
+        }
+
+        try {
+            DB::transaction(fn () => Tugas::create($data + ['guru_id' => $guru->id]));
+        } catch (Throwable $exception) {
+            if ($path !== null) {
+                Storage::disk('local')->delete($path);
+            }
+
+            throw $exception;
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'redirect' => $redirect,
+            ]);
+        }
 
         return redirect()
-            ->route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas'])
-            ->with('success', 'Tugas berhasil ditambahkan.');
+            ->to($redirect)
+            ->with('success', $message);
     }
 
-    public function updateTugas(Request $request, Tugas $tugas): RedirectResponse
+    public function updateTugas(Request $request, Tugas $tugas): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
         $this->pastikanMilikGuru($tugas, $guru);
 
-        $tugas->update($this->validasiTugas($request, $guru));
+        $data = $this->validasiTugas($request, $guru, true);
+        $hapusLampiran = $request->boolean('hapus_lampiran');
+        $file = $request->file('file');
+        $pathLama = $tugas->file_path;
+        $lampiranDihapus = false;
+        $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas']);
+        $message = 'Tugas berhasil diperbarui.';
 
-        return redirect()
-            ->route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas'])
-            ->with('success', 'Tugas berhasil diperbarui.');
+        if ($file !== null) {
+            $pathBaru = $this->simpanFileLampiran($file, 'tugas');
+            $data += $this->dataFileLampiran($file, $pathBaru);
+
+            try {
+                DB::transaction(fn () => $tugas->update($data));
+            } catch (Throwable $exception) {
+                Storage::disk('local')->delete($pathBaru);
+
+                throw $exception;
+            }
+
+            if ($pathLama !== null && $pathLama !== $pathBaru) {
+                Storage::disk('local')->delete($pathLama);
+            }
+        } else {
+            if ($hapusLampiran) {
+                $data += $this->dataFileLampiranKosong();
+            }
+
+            DB::transaction(fn () => $tugas->update($data));
+
+            if ($hapusLampiran && $pathLama !== null) {
+                Storage::disk('local')->delete($pathLama);
+            }
+
+            $lampiranDihapus = $hapusLampiran;
+        }
+
+        $pesanHapusLampiran = $lampiranDihapus ? 'Lampiran tugas berhasil dihapus.' : null;
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'redirect' => $redirect,
+                'delete_success' => $pesanHapusLampiran,
+            ]);
+        }
+
+        $respons = redirect()
+            ->to($redirect)
+            ->with('success', $message);
+
+        if ($pesanHapusLampiran !== null) {
+            $respons->with('delete_success', $pesanHapusLampiran);
+        }
+
+        return $respons;
     }
 
-    public function destroyTugas(Request $request, Tugas $tugas): RedirectResponse
+    public function destroyTugas(Request $request, Tugas $tugas): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
         $this->pastikanMilikGuru($tugas, $guru);
 
-        $tugas->delete();
+        $id = $tugas->id;
+        $path = $tugas->file_path;
+
+        DB::transaction(fn () => $tugas->delete());
+
+        if ($path !== null) {
+            Storage::disk('local')->delete($path);
+        }
+
+        $pesan = 'Tugas berhasil dihapus.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => $pesan,
+                'data' => ['id' => $id],
+            ]);
+        }
 
         return redirect()
             ->route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas'])
-            ->with('success', 'Tugas berhasil dihapus.');
+            ->with('success', $pesan);
+    }
+
+    public function previewTugas(Request $request, Tugas $tugas)
+    {
+        $guru = $this->guru($request);
+        $this->pastikanMilikGuru($tugas, $guru);
+
+        return $this->responseFileTugas($tugas, false);
+    }
+
+    public function unduhTugas(Request $request, Tugas $tugas)
+    {
+        $guru = $this->guru($request);
+        $this->pastikanMilikGuru($tugas, $guru);
+
+        return $this->responseFileTugas($tugas, true);
     }
 
     public function pengumpulan(Request $request, Tugas $tugas): View
@@ -208,15 +363,19 @@ class TugasMateriController extends Controller
 
         $data = $request->validate([
             'nilai' => ['nullable', 'numeric', 'between:0,100'],
+            'umpan_balik' => ['nullable', 'string', 'max:2000'],
         ], [
             'nilai.numeric' => 'Nilai harus berupa angka.',
             'nilai.between' => 'Nilai harus berada di antara 0 sampai 100.',
+            'umpan_balik.max' => 'Umpan balik maksimal 2000 karakter.',
         ]);
 
         $nilai = filled($data['nilai'] ?? null) ? round((float) $data['nilai'], 2) : null;
+        $umpanBalik = filled($data['umpan_balik'] ?? null) ? trim($data['umpan_balik']) : null;
 
         $pengumpulan->update([
             'nilai' => $nilai,
+            'umpan_balik' => $umpanBalik,
             'status' => $nilai === null
                 ? PengumpulanTugas::STATUS_DIKUMPULKAN
                 : PengumpulanTugas::STATUS_DINILAI,
@@ -227,40 +386,156 @@ class TugasMateriController extends Controller
             ->with('success', 'Nilai pengumpulan berhasil disimpan.');
     }
 
-    public function storeMateri(Request $request): RedirectResponse
+    public function storeMateri(Request $request): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
-        $data = $this->validasiMateri($request, $guru);
+        $data = $this->validasiMateri($request, $guru, true);
+        $file = $request->file('file');
+        $path = $this->simpanFileLampiran($file, 'materi');
 
-        Materi::create($data + ['guru_id' => $guru->id]);
+        try {
+            DB::transaction(fn () => Materi::create($data + [
+                'guru_id' => $guru->id,
+                'file_path' => $path,
+                'nama_file' => FileMateri::namaAman($file->getClientOriginalName()),
+                'mime_type' => FileMateri::mime($file),
+                'ekstensi' => FileMateri::ekstensi($file),
+                'ukuran_bytes' => $file->getSize(),
+            ]));
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($path);
+
+            throw $exception;
+        }
+
+        $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'materi']);
+        $message = 'Materi berhasil ditambahkan.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'redirect' => $redirect,
+            ]);
+        }
 
         return redirect()
-            ->route('dashboard.guru.tugas-materi.index', ['tab' => 'materi'])
-            ->with('success', 'Materi berhasil ditambahkan.');
+            ->to($redirect)
+            ->with('success', $message);
     }
 
-    public function updateMateri(Request $request, Materi $materi): RedirectResponse
+    public function updateMateri(Request $request, Materi $materi): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
         $this->pastikanMilikGuru($materi, $guru);
 
-        $materi->update($this->validasiMateri($request, $guru));
+        $data = $this->validasiMateri($request, $guru, false);
+        $file = $request->file('file');
+        $pathLama = $materi->file_path;
+        $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'materi']);
+        $message = 'Materi berhasil diperbarui.';
+
+        if ($file === null) {
+            DB::transaction(fn () => $materi->update($data));
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'ok' => true,
+                    'message' => $message,
+                    'redirect' => $redirect,
+                ]);
+            }
+
+            return redirect()
+                ->to($redirect)
+                ->with('success', $message);
+        }
+
+        $pathBaru = $this->simpanFileLampiran($file, 'materi');
+        $data += [
+            'file_path' => $pathBaru,
+            'nama_file' => FileMateri::namaAman($file->getClientOriginalName()),
+            'mime_type' => FileMateri::mime($file),
+            'ekstensi' => FileMateri::ekstensi($file),
+            'ukuran_bytes' => $file->getSize(),
+        ];
+
+        try {
+            DB::transaction(fn () => $materi->update($data));
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($pathBaru);
+
+            throw $exception;
+        }
+
+        if ($pathLama !== null && $pathLama !== $pathBaru) {
+            Storage::disk('local')->delete($pathLama);
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+                'redirect' => $redirect,
+            ]);
+        }
 
         return redirect()
-            ->route('dashboard.guru.tugas-materi.index', ['tab' => 'materi'])
-            ->with('success', 'Materi berhasil diperbarui.');
+            ->to($redirect)
+            ->with('success', $message);
     }
 
-    public function destroyMateri(Request $request, Materi $materi): RedirectResponse
+    public function destroyMateri(Request $request, Materi $materi): RedirectResponse|JsonResponse
     {
         $guru = $this->guru($request);
         $this->pastikanMilikGuru($materi, $guru);
 
-        $materi->delete();
+        $id = $materi->id;
+        $path = $materi->file_path;
+
+        DB::transaction(fn () => $materi->delete());
+
+        if ($path !== null) {
+            Storage::disk('local')->delete($path);
+        }
+
+        $pesan = 'Materi berhasil dihapus.';
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'status' => 'success',
+                'message' => $pesan,
+                'data' => ['id' => $id],
+            ]);
+        }
 
         return redirect()
             ->route('dashboard.guru.tugas-materi.index', ['tab' => 'materi'])
-            ->with('success', 'Materi berhasil dihapus.');
+            ->with('success', $pesan);
+    }
+
+    public function detailMateri(Request $request, Materi $materi): JsonResponse
+    {
+        $guru = $this->guru($request);
+        $this->pastikanMilikGuru($materi, $guru);
+
+        return response()->json(['detail' => $this->dataDetailMateri($materi)]);
+    }
+
+    public function previewMateri(Request $request, Materi $materi)
+    {
+        $guru = $this->guru($request);
+        $this->pastikanMilikGuru($materi, $guru);
+
+        return $this->responseFileMateri($materi, false);
+    }
+
+    public function unduhMateri(Request $request, Materi $materi)
+    {
+        $guru = $this->guru($request);
+        $this->pastikanMilikGuru($materi, $guru);
+
+        return $this->responseFileMateri($materi, true);
     }
 
     // Bantuan
@@ -335,9 +610,9 @@ class TugasMateriController extends Controller
     }
 
     /**
-     * @return array{mata_pelajaran_id: int, kelas: string, jurusan: string, judul: string, deskripsi: string|null, deadline: string|null}
+     * @return array<string, mixed>
      */
-    protected function validasiTugas(Request $request, User $guru): array
+    protected function validasiTugas(Request $request, User $guru, bool $untukPerbarui = false): array
     {
         $data = $request->validate([
             'mata_pelajaran_id' => ['required', 'integer', 'exists:mata_pelajaran,id'],
@@ -347,7 +622,15 @@ class TugasMateriController extends Controller
             'judul' => ['required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string', 'max:5000'],
             'deadline' => ['nullable', 'date'],
-        ], [
+            'file' => [
+                'nullable',
+                'file',
+                'max:'.FileMateri::MAX_UKURAN_KB,
+                'mimes:'.implode(',', FileMateri::ekstensiDiizinkan()),
+                'mimetypes:'.implode(',', FileMateri::mimeDiizinkan()),
+            ],
+            'hapus_lampiran' => ['sometimes', 'boolean'],
+        ], array_merge([
             'mata_pelajaran_id.required' => 'Mata pelajaran wajib dipilih.',
             'mata_pelajaran_id.exists' => 'Mata pelajaran tidak ditemukan.',
             'rombel.required_without' => 'Kelas wajib dipilih.',
@@ -355,7 +638,20 @@ class TugasMateriController extends Controller
             'judul.required' => 'Judul tugas wajib diisi.',
             'judul.max' => 'Judul tugas terlalu panjang.',
             'deadline.date' => 'Tenggat tugas tidak valid.',
-        ]);
+        ], [
+            'file.file' => 'Lampiran tugas tidak dapat diproses. Silakan pilih file lain.',
+            'file.max' => 'Ukuran lampiran tugas melebihi batas maksimal 20 MB.',
+            'file.mimes' => 'Format lampiran tugas tidak didukung. Gunakan PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, PNG, atau ZIP.',
+            'file.mimetypes' => 'Format lampiran tugas tidak didukung. Gunakan PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, JPG, PNG, atau ZIP.',
+        ]));
+
+        $file = $request->file('file');
+
+        if ($file !== null && ! FileMateri::valid($file)) {
+            throw ValidationException::withMessages([
+                'file' => 'Format file tidak didukung.',
+            ]);
+        }
 
         $rombel = $this->rombelDariInput($data);
 
@@ -376,10 +672,89 @@ class TugasMateriController extends Controller
         ];
     }
 
+    private function simpanFileLampiran(UploadedFile $file, string $tipe): string
+    {
+        $direktori = $tipe.'/'.date('Y').'/'.date('m');
+        $nama = FileMateri::namaAcak(FileMateri::ekstensi($file));
+        $path = Storage::disk('local')->putFileAs($direktori, $file, $nama);
+
+        if ($path === false) {
+            throw new \RuntimeException('Gagal menyimpan lampiran file.');
+        }
+
+        return $path;
+    }
+
     /**
-     * @return array{mata_pelajaran_id: int, kelas: string, jurusan: string, judul: string, deskripsi: string|null, tanggal: string}
+     * @return array{file_path: string, nama_file: string, mime_type: string, ekstensi: string, ukuran_bytes: int|false|null}
      */
-    protected function validasiMateri(Request $request, User $guru): array
+    private function dataFileLampiran(UploadedFile $file, string $path): array
+    {
+        return [
+            'file_path' => $path,
+            'nama_file' => FileMateri::namaAman($file->getClientOriginalName()),
+            'mime_type' => FileMateri::mime($file),
+            'ekstensi' => FileMateri::ekstensi($file),
+            'ukuran_bytes' => $file->getSize(),
+        ];
+    }
+
+    /**
+     * @return array{file_path: null, nama_file: null, mime_type: null, ekstensi: null, ukuran_bytes: null}
+     */
+    private function dataFileLampiranKosong(): array
+    {
+        return [
+            'file_path' => null,
+            'nama_file' => null,
+            'mime_type' => null,
+            'ekstensi' => null,
+            'ukuran_bytes' => null,
+        ];
+    }
+
+    private function simpanFileMateri(UploadedFile $file): string
+    {
+        $direktori = 'materi/'.date('Y').'/'.date('m');
+        $nama = FileMateri::namaAcak(FileMateri::ekstensi($file));
+        $path = Storage::disk('local')->putFileAs($direktori, $file, $nama);
+
+        if ($path === false) {
+            throw new \RuntimeException('Gagal menyimpan file materi.');
+        }
+
+        return $path;
+    }
+
+    private function dataDetailMateri(Materi $materi): array
+    {
+        $memilikiFile = $materi->file_path !== null;
+
+        return [
+            'id' => $materi->id,
+            'judul' => $materi->judul,
+            'mata_pelajaran' => $materi->mataPelajaran?->nama,
+            'guru' => $materi->guru?->name,
+            'kelas' => $materi->kelas,
+            'jurusan' => $materi->jurusan,
+            'deskripsi' => $materi->deskripsi,
+            'tanggal' => $materi->tanggal?->translatedFormat('d F Y'),
+            'tanggal_diperbarui' => $materi->updated_at?->translatedFormat('d F Y H:i'),
+            'memiliki_file' => $memilikiFile,
+            'nama_file' => $materi->nama_file,
+            'format' => $materi->format_file,
+            'ukuran' => $materi->ukuran_file,
+            'bisa_dipratinjau' => $memilikiFile && $materi->bisa_dipratinjau,
+            'preview_url' => $memilikiFile
+                ? route('dashboard.guru.tugas-materi.materi.preview', $materi)
+                : null,
+            'unduh_url' => $memilikiFile
+                ? route('dashboard.guru.tugas-materi.materi.unduh', $materi)
+                : null,
+        ];
+    }
+
+    protected function validasiMateri(Request $request, User $guru, bool $wajibFile): array
     {
         $data = $request->validate([
             'mata_pelajaran_id' => ['required', 'integer', 'exists:mata_pelajaran,id'],
@@ -389,7 +764,8 @@ class TugasMateriController extends Controller
             'judul' => ['required', 'string', 'max:255'],
             'deskripsi' => ['nullable', 'string', 'max:5000'],
             'tanggal' => ['nullable', 'date'],
-        ], [
+            'file' => FileMateri::aturan($wajibFile),
+        ], array_merge([
             'mata_pelajaran_id.required' => 'Mata pelajaran wajib dipilih.',
             'mata_pelajaran_id.exists' => 'Mata pelajaran tidak ditemukan.',
             'rombel.required_without' => 'Kelas wajib dipilih.',
@@ -397,7 +773,15 @@ class TugasMateriController extends Controller
             'judul.required' => 'Judul materi wajib diisi.',
             'judul.max' => 'Judul materi terlalu panjang.',
             'tanggal.date' => 'Tanggal materi tidak valid.',
-        ]);
+        ], FileMateri::pesanValidasi()));
+
+        $file = $request->file('file');
+
+        if ($file !== null && ! FileMateri::valid($file)) {
+            throw ValidationException::withMessages([
+                'file' => 'Format file tidak didukung.',
+            ]);
+        }
 
         $rombel = $this->rombelDariInput($data);
 
@@ -445,6 +829,15 @@ class TugasMateriController extends Controller
 
     protected function pastikanCakupan(User $guru, int $mapelId, string $kelas, string $jurusan): void
     {
+        $diampu = $this->akademik->mapelDiampu($guru)
+            ->contains(fn (MataPelajaran $mapel) => (int) $mapel->id === $mapelId);
+
+        if (! $diampu) {
+            throw ValidationException::withMessages([
+                'mata_pelajaran_id' => 'Anda tidak mengampu mata pelajaran ini.',
+            ]);
+        }
+
         if (! $this->akademik->bolehMengajar($guru, $mapelId, $kelas, $jurusan)) {
             throw ValidationException::withMessages([
                 'rombel' => 'Anda tidak mengajar mata pelajaran ini di kelas tersebut.',
@@ -501,6 +894,6 @@ class TugasMateriController extends Controller
 
     protected function labelRombel(string $kelas, string $jurusan): string
     {
-        return 'Kelas '.$kelas.($jurusan !== '' ? ' · '.$jurusan : '');
+        return 'Kelas '.$kelas.($jurusan !== '' ? ' - '.$jurusan : '');
     }
 }

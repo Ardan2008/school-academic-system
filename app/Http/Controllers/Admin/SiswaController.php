@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ActivityLog;
+use App\Models\Jurusan;
 use App\Models\KelasRombel;
 use App\Models\User;
 use App\Services\ActivityLogger;
@@ -56,6 +57,8 @@ class SiswaController extends Controller
             'siswaData' => [
                 'siswa' => $siswa->values(),
                 'statuses' => User::STATUSES,
+                // Dipakai dropdown Jurusan di form Tambah/Ubah Siswa.
+                'jurusan_opsi' => Jurusan::opsiForm()->all(),
                 'kelas_contoh' => Kelas::CONTOH,
                 'kelas_contoh_rombel' => Kelas::CONTOH_ROMBEL,
                 // Pola dikirim dari sini, bukan ditulis ulang di JavaScript, supaya
@@ -367,7 +370,8 @@ class SiswaController extends Controller
                 Rule::unique('users', 'email')->ignore($user?->id),
             ],
             'kelas' => ['required', 'string', 'max:30', 'regex:'.Kelas::PATTERN],
-            'jurusan' => ['required', 'string', 'max:120'],
+            // Form mengirim ID jurusan; kolom users.jurusan tetap menyimpan nama.
+            'jurusan' => ['required', 'integer', Rule::exists('jurusan', 'id')],
             'status' => ['required', Rule::in(User::STATUSES)],
             'password' => [
                 'nullable',
@@ -386,7 +390,9 @@ class SiswaController extends Controller
             'email.unique' => 'Email sudah dipakai akun lain.',
             'kelas.required' => 'Kelas wajib diisi.',
             'kelas.regex' => Kelas::formatMessage(),
-            'jurusan.required' => 'Jurusan wajib diisi.',
+            'jurusan.required' => 'Jurusan wajib dipilih.',
+            'jurusan.integer' => 'Jurusan yang dipilih tidak valid.',
+            'jurusan.exists' => 'Jurusan yang dipilih tidak terdaftar.',
             'status.in' => 'Status akun tidak valid.',
             'password.min' => 'Password minimal terdiri dari '.PasswordPolicy::MIN_LENGTH.' karakter.',
             'password.regex' => 'Password harus mengandung huruf besar dan angka.',
@@ -397,7 +403,7 @@ class SiswaController extends Controller
             'nis' => trim($validated['nis']),
             'email' => mb_strtolower(trim($validated['email'])),
             'kelas' => $validated['kelas'],
-            'jurusan' => trim($validated['jurusan']),
+            'jurusan' => Jurusan::namaDariId((int) $validated['jurusan']),
             'status' => $validated['status'],
             'password' => $validated['password'] ?? null,
         ];

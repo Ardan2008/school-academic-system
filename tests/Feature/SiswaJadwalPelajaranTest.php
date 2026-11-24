@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\JadwalPelajaran;
+use App\Models\JamBelajarKonfigurasi;
 use App\Models\MataPelajaran;
+use App\Models\SesiJamBelajar;
 use App\Models\User;
+use App\Support\Periode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -26,11 +29,13 @@ class SiswaJadwalPelajaranTest extends TestCase
         string $mulai = '07:00',
         string $selesai = '08:30',
         ?string $ruang = 'R.101',
+        ?SesiJamBelajar $sesi = null,
     ): JadwalPelajaran {
         return JadwalPelajaran::create([
             'kelas' => $kelas,
             'jurusan' => $jurusan,
             'hari' => $hari,
+            'sesi_id' => $sesi?->id,
             'jam_mulai' => $mulai,
             'jam_selesai' => $selesai,
             'mata_pelajaran_id' => $mapel->id,
@@ -128,5 +133,97 @@ class SiswaJadwalPelajaranTest extends TestCase
 
         $res->assertOk();
         $res->assertSee('Data Kelas Belum Diatur');
+    }
+
+    public function test_siswa_melihat_periode_berjalan_pada_halaman_jadwal(): void
+    {
+        $mapel = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $guru = User::factory()->guru()->create(['name' => 'Budi Guru']);
+        $siswa = User::factory()->siswa('12-1')->create(['jurusan' => 'Rekayasa Perangkat Lunak']);
+
+        $this->buatJadwal($guru, $mapel, '12-1', 'Rekayasa Perangkat Lunak', 'Senin');
+        $periode = Periode::periodeSekarang();
+
+        $this->actingAs($siswa)
+            ->get(route('dashboard.siswa.jadwal-pelajaran.index'))
+            ->assertOk()
+            ->assertSee(Periode::label($periode['tahun_ajaran'], $periode['semester']));
+    }
+
+    public function test_siswa_melihat_waktu_sesi_terbaru_tanpa_mengubah_jadwal(): void
+    {
+        $mapel = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $guru = User::factory()->guru()->create(['name' => 'Budi Guru']);
+        $siswa = User::factory()->siswa('12-1')->create(['jurusan' => 'Rekayasa Perangkat Lunak']);
+        $konfigurasi = JamBelajarKonfigurasi::query()->firstOrFail();
+        $sesi = SesiJamBelajar::create([
+            'jam_belajar_konfigurasi_id' => $konfigurasi->id,
+            'nama' => 'Sesi Uji',
+            'jenis' => SesiJamBelajar::JENIS_PELAJARAN,
+            'urutan' => (int) SesiJamBelajar::query()->max('urutan') + 1,
+            'jam_mulai' => '11:45',
+            'jam_selesai' => '12:30',
+        ]);
+        $jadwal = $this->buatJadwal(
+            $guru,
+            $mapel,
+            '12-1',
+            'Rekayasa Perangkat Lunak',
+            'Senin',
+            '11:45',
+            '12:30',
+            'R.101',
+            $sesi
+        );
+
+        $sesi->update(['jam_selesai' => '13:00']);
+
+        $this->actingAs($siswa)
+            ->get(route('dashboard.siswa.jadwal-pelajaran.index'))
+            ->assertOk()
+            ->assertSee('11:45–13:00')
+            ->assertSee('Jadwal perlu disesuaikan.');
+
+        $this->assertDatabaseHas('jadwal', [
+            'id' => $jadwal->id,
+            'jam_mulai' => '11:45',
+            'jam_selesai' => '12:30',
+        ]);
+    }
+
+    public function test_hari_nonaktif_tidak_tersedia_pada_halaman_siswa(): void
+    {
+        JamBelajarKonfigurasi::query()->firstOrFail()->update([
+            'hari_aktif' => ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Sabtu'],
+        ]);
+        $mapel = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $guru = User::factory()->guru()->create();
+        $siswa = User::factory()->siswa('12-1')->create(['jurusan' => 'Rekayasa Perangkat Lunak']);
+        $this->buatJadwal($guru, $mapel, '12-1', 'Rekayasa Perangkat Lunak', 'Jumat');
+
+        $this->actingAs($siswa)
+            ->get(route('dashboard.siswa.jadwal-pelajaran.index'))
+            ->assertOk()
+            ->assertDontSee('hari=Jumat')
+            ->assertSee('Hari Jumat sedang dinonaktifkan.');
+    }
+
+    public function test_jadwal_periode_lama_tidak_tampil_untuk_siswa(): void
+    {
+        $mapel = MataPelajaran::factory()->create(['kode' => 'MTK', 'nama' => 'Matematika']);
+        $guru = User::factory()->guru()->create(['name' => 'Budi Guru']);
+        $siswa = User::factory()->siswa('12-1')->create(['jurusan' => 'Rekayasa Perangkat Lunak']);
+
+        $jadwal = $this->buatJadwal($guru, $mapel, '12-1', 'Rekayasa Perangkat Lunak', 'Senin');
+        JadwalPelajaran::whereKey($jadwal->id)->update([
+            'tahun_ajaran' => '2020/2021',
+            'semester' => Periode::SEMESTER_GANJIL,
+        ]);
+
+        $this->actingAs($siswa)
+            ->get(route('dashboard.siswa.jadwal-pelajaran.index'))
+            ->assertOk()
+            ->assertDontSee('Matematika')
+            ->assertSee('Jadwal Pelajaran Belum Tersedia');
     }
 }

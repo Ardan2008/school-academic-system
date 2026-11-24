@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Models\JadwalPelajaran;
+use App\Models\MataPelajaran;
 use App\Models\Materi;
 use App\Models\PengumpulanTugas;
 use App\Models\Tugas;
 use App\Models\User;
+use App\Support\Periode;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,6 +25,8 @@ use Illuminate\Support\Collection;
  */
 class InfoSiswa
 {
+    public function __construct(private readonly PenugasanMengajarService $penugasan) {}
+
     /** Jadwal hari ini untuk kelas siswa; koleksi kosong di luar hari sekolah. */
     public function jadwalHariIni(User $siswa): Collection
     {
@@ -62,13 +67,17 @@ class InfoSiswa
     /** Tugas rombel siswa, terdekat tenggat lebih dulu, sudah membawa status pengumpulan. */
     public function tugas(User $siswa): Collection
     {
-        return Tugas::query()
+        $query = Tugas::query()
             ->untukRombel($siswa->kelas, $siswa->jurusan)
             ->with([
                 'mataPelajaran',
                 'guru',
                 'pengumpulan' => fn ($query) => $query->where('user_id', $siswa->id),
-            ])
+            ]);
+
+        $this->batasiPenugasan($query, $siswa);
+
+        return $query
             ->orderByRaw('deadline IS NULL')
             ->orderBy('deadline')
             ->get();
@@ -115,13 +124,51 @@ class InfoSiswa
         return $query->get();
     }
 
+    public function mataPelajaranIds(User $siswa): Collection
+    {
+        $ids = $this->pasanganPenugasan($siswa)
+            ->pluck('mata_pelajaran_id')
+            ->unique()
+            ->values();
+
+        $belumDiatur = $this->penugasan->guruBelumDiaturIds();
+
+        if ($belumDiatur->isNotEmpty()) {
+            $legacyIds = JadwalPelajaran::query()
+                ->untukRombel($siswa->kelas, $siswa->jurusan)
+                ->where(function ($query) use ($belumDiatur): void {
+                    $query->whereIn('guru_id', $belumDiatur->all())
+                        ->orWhereNull('guru_id');
+                })
+                ->pluck('mata_pelajaran_id')
+                ->filter()
+                ->unique()
+                ->values();
+
+            $ids = $ids->merge($legacyIds);
+
+            if ($legacyIds->isEmpty()) {
+                $ids = $ids->merge(MataPelajaran::query()->pluck('id'));
+            }
+        }
+
+        if ($ids->isEmpty() && $this->penugasan->guruDiaturIds()->isEmpty()) {
+            return MataPelajaran::query()->pluck('id');
+        }
+
+        return $ids->unique()->values();
+    }
+
     public function materi(User $siswa): Collection
     {
-        return Materi::query()
+        $query = Materi::query()
             ->untukRombel($siswa->kelas, $siswa->jurusan)
-            ->with(['mataPelajaran', 'guru'])
-            ->orderByDesc('tanggal')
-            ->get();
+            ->whereIn('mata_pelajaran_id', $this->mataPelajaranIds($siswa))
+            ->with(['mataPelajaran', 'guru']);
+
+        $this->batasiPenugasan($query, $siswa);
+
+        return $query->orderByDesc('tanggal')->get();
     }
 
     /** Status pengerjaan tugas untuk satu siswa: selesai, terlambat, atau menunggu. */
@@ -130,7 +177,11 @@ class InfoSiswa
         $pengumpulan = $tugas->pengumpulan->first();
 
         if ($pengumpulan !== null) {
-            return ['kode' => 'selesai', 'label' => 'Dikumpulkan', 'class' => 'bg-emerald-50 text-emerald-600'];
+            return [
+                'kode' => 'dikumpulkan',
+                'label' => $pengumpulan->status === PengumpulanTugas::STATUS_DINILAI ? 'Dinilai' : 'Dikumpulkan',
+                'class' => 'bg-emerald-50 text-emerald-600',
+            ];
         }
 
         if ($tugas->sudahLewatDeadline()) {
@@ -140,10 +191,55 @@ class InfoSiswa
         return ['kode' => 'menunggu', 'label' => 'Menunggu', 'class' => 'bg-amber-50 text-amber-600'];
     }
 
+    /**
+     * @return Collection<int, array{guru_id: int, mata_pelajaran_id: int}>
+     */
+    protected function pasanganPenugasan(User $siswa): Collection
+    {
+        return $this->penugasan->pasanganUntukRombel((string) $siswa->kelas, $siswa->jurusan);
+    }
+
+    /**
+     * @param  Builder<Tugas|Materi>  $query
+     */
+    protected function batasiPenugasan(Builder $query, User $siswa): void
+    {
+        $diatur = $this->penugasan->guruDiaturIds();
+
+        if ($diatur->isEmpty()) {
+            return;
+        }
+
+        $pasangan = $this->pasanganPenugasan($siswa);
+        $belumDiatur = $this->penugasan->guruBelumDiaturIds();
+
+        $query->where(function (Builder $sub) use ($pasangan, $belumDiatur) {
+            $sub->whereNull('guru_id');
+
+            if ($belumDiatur->isNotEmpty()) {
+                $sub->orWhere(fn (Builder $q) => $q->whereIn('guru_id', $belumDiatur->all()));
+            }
+
+            foreach ($pasangan as $item) {
+                $sub->orWhere(fn (Builder $q) => $q
+                    ->where('guru_id', $item['guru_id'])
+                    ->where('mata_pelajaran_id', $item['mata_pelajaran_id']));
+            }
+        });
+    }
+
     protected function jadwalQuery(User $siswa)
     {
-        return JadwalPelajaran::query()
+        $periode = Periode::periodeSekarang();
+
+        $query = JadwalPelajaran::query()
             ->untukRombel($siswa->kelas, $siswa->jurusan)
-            ->with(['mataPelajaran', 'guru']);
+            ->where('tahun_ajaran', $periode['tahun_ajaran'])
+            ->where('semester', $periode['semester'])
+            ->with(['mataPelajaran', 'guru', 'sesi']);
+
+        $this->batasiPenugasan($query, $siswa);
+
+        return $query;
     }
 }

@@ -4,7 +4,9 @@
 @section('subtitle', 'Dashboard Guru')
 
 @section('content')
-    <div id="siswa-page">
+    <x-dashboard.animations />
+
+    <div id="siswa-page" data-dashboard>
 
         {{-- Statistik --}}
         @php
