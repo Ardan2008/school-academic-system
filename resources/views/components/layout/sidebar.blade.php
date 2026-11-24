@@ -445,11 +445,11 @@
             <button
                 id="logout-btn-sidebar"
                 type="submit"
-                data-sidebar-tooltip="Log Out"
+                data-sidebar-tooltip="Keluar"
                 class="sb-link group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-[#0F3D73] transition hover:bg-red-50 hover:text-red-600 sm:gap-4"
             >
                 <x-lucide-log-out class="h-5 w-5 shrink-0 text-primary-60 transition group-hover:text-red-600" />
-                <span class="sb-label min-w-0 flex-1 truncate text-left">Log Out</span>
+                <span class="sb-label min-w-0 flex-1 truncate text-left">Keluar</span>
             </button>
         </form>
     </div>

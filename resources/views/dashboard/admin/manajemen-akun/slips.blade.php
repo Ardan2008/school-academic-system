@@ -246,22 +246,10 @@
                     setExportState('idle', LABEL_AWAL);
                 }, KEMBALI_SUKSES_MS);
 
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Export Berhasil',
-                    text: 'Data slip password berhasil diunduh.',
-                    showConfirmButton: false,
-                    timer: 1800,
-                    timerProgressBar: true,
-                });
+                window.saskansaToast?.success('Data slip password berhasil diunduh.', 'Export Berhasil');
             } catch (galat) {
                 setExportState('idle', LABEL_AWAL);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Gagal Mengunduh',
-                    text: galat instanceof Error ? galat.message : 'Tidak dapat terhubung ke server.',
-                    confirmButtonText: 'Tutup',
-                });
+                window.saskansaToast?.error(galat instanceof Error ? galat.message : 'Tidak dapat terhubung ke server.', 'Gagal Mengunduh');
             }
         });
     });

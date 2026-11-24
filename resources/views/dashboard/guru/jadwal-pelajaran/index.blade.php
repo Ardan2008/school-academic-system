@@ -79,10 +79,7 @@
          data-week-start="{{ $pekanStartIso }}">
 
         @if (session('success'))
-            <div class="jg-toast" data-flash-toast role="status">
-                <x-lucide-circle-check class="mr-2 inline h-4 w-4 text-[#0F6B3C]" aria-hidden="true" />
-                {{ session('success') }}
-            </div>
+            <div data-flash-toast class="hidden">{{ session('success') }}</div>
         @endif
 
         {{-- B. Baris kontrol --}}

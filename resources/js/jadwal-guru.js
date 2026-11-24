@@ -76,14 +76,16 @@ const pesanGalat = (hasil, bawaan) => {
 };
 
 const notifikasi = (pesan, sukses = true) => {
+    if (window.saskansaToast) {
+        window.saskansaToast[sukses ? 'success' : 'error'](pesan, sukses ? 'Berhasil' : 'Gagal');
+        return;
+    }
     if (window.Swal) {
         window.Swal.fire({
             icon: sukses ? 'success' : 'error',
             title: sukses ? 'Berhasil' : 'Gagal',
             text: pesan,
-            timer: sukses ? 1400 : undefined,
-            timerProgressBar: sukses,
-            showConfirmButton: !sukses,
+            toast: !sukses ? undefined : true,
         });
         return;
     }
@@ -1508,7 +1510,14 @@ function initJadwalGuru() {
     });
 
     const flash = elemen('[data-flash-toast]', root);
-    if (flash) window.setTimeout(() => flash.remove(), 4500);
+    if (flash) {
+        const pesan = flash.textContent.replace(/\s+/g, ' ').trim();
+        if (pesan) {
+            if (window.saskansaToast) window.saskansaToast.success(pesan, 'Berhasil');
+            else notifikasi(pesan, true);
+        }
+        flash.remove();
+    }
 
     const topbar = elemen('header.sticky');
     const perbaruiTopbar = () => topbar?.classList.toggle('jg-topbar-scroll', window.scrollY > 4);
