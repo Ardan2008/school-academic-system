@@ -8,6 +8,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Storage;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 
 /**
@@ -21,6 +22,7 @@ use Tymon\JWTAuth\Contracts\JWTSubject;
  * @property string|null $nis
  * @property string|null $jurusan
  * @property string|null $mata_pelajaran
+ * @property string|null $profile_photo_path
  * @property string|null $initial_password
  * @property bool $must_change_password
  * @property bool $is_active
@@ -60,6 +62,7 @@ class User extends Authenticatable implements JWTSubject
         'nis',
         'jurusan',
         'mata_pelajaran',
+        'profile_photo_path',
         'penugasan_diatur',
         'is_active',
         'status',
@@ -157,6 +160,31 @@ class User extends Authenticatable implements JWTSubject
         $field = LoginIdentifier::field((string) $this->role);
 
         return $this->{$field};
+    }
+
+    public function profilePhotoUrl(): ?string
+    {
+        $path = trim((string) ($this->profile_photo_path ?? ''));
+        if ($path === '') {
+            return null;
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            $url = $path;
+        } else {
+            $relative = ltrim($path, '/');
+            if (str_starts_with($relative, 'storage/')) {
+                $relative = substr($relative, strlen('storage/'));
+            }
+            $url = '/storage/'.ltrim($relative, '/');
+        }
+
+        $version = $this->updated_at?->getTimestamp();
+        if ($version) {
+            $url .= (str_contains($url, '?') ? '&' : '?').'v='.$version;
+        }
+
+        return $url;
     }
 
     protected function casts(): array

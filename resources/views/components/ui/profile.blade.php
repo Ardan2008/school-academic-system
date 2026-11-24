@@ -23,6 +23,10 @@
     $editAsModal = $canEdit && (bool) $editModal;
     $password    = (string) $password;
     $canShowPw   = $password !== '';
+    $photoUrl    = method_exists($user, 'profilePhotoUrl') ? $user->profilePhotoUrl() : null;
+    $initial     = strtoupper(mb_substr(trim((string) ($user->name ?? '?')), 0, 1) ?: '?');
+    $photoUpdateUrl = Route::has('profile.photo.update') ? route('profile.photo.update', ['role' => $user->role]) : '';
+    $photoDeleteUrl = Route::has('profile.photo.delete') ? route('profile.photo.delete', ['role' => $user->role]) : '';
 
     // text-base di HP mencegah auto-zoom iOS Safari; sm:text-sm untuk layar >= 640px
     $inputClass = 'w-full rounded-lg border px-3 py-2.5 text-base outline-none transition placeholder:text-slate-300 sm:py-2 sm:text-sm '
@@ -51,6 +55,36 @@
             </header>
 
             <form id="profile-form" class="space-y-3.5 p-4 sm:p-5" autocomplete="off" novalidate>
+                <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                    <p class="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Foto Profil</p>
+                    <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                        <div class="relative h-20 w-20 shrink-0 overflow-hidden rounded-full ring-2 ring-white shadow-md sm:h-24 sm:w-24" data-profile-avatar>
+                            <img id="profile-photo-preview" src="{{ $photoUrl ?: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=' }}" alt="" aria-hidden="true" onerror="window.saskansaAvatarFallback?.(this)" class="{{ $photoUrl ? '' : 'hidden' }} h-full w-full object-cover" data-profile-avatar-img>
+                            <div id="profile-photo-initial" class="{{ $photoUrl ? 'hidden' : '' }} flex h-full w-full items-center justify-center bg-primary-60 text-2xl font-bold text-white" data-profile-avatar-initial>{{ $initial }}</div>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <div class="flex flex-wrap gap-2">
+                                <label
+                                    for="profile-photo-input"
+                                    tabindex="0"
+                                    role="button"
+                                    class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-primary-60 bg-white px-3 py-2 text-xs font-semibold text-primary-60 transition hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60"
+                                >
+                                    <x-lucide-upload class="h-4 w-4" />
+                                    Upload Foto
+                                </label>
+                                <input id="profile-photo-input" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" class="hidden">
+                                <button type="button" id="profile-photo-delete" class="{{ $photoUrl ? '' : 'hidden' }} inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50">
+                                    <x-lucide-trash-2 class="h-4 w-4" />
+                                    Hapus Foto
+                                </button>
+                            </div>
+                            <p class="mt-2 text-[11px] leading-relaxed text-slate-500">Format JPG, JPEG, PNG, atau WEBP. Maksimal 2 MB. Gunakan crop lingkaran sebelum menyimpan.</p>
+                            <p id="profile-photo-error" class="mt-2 hidden rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600"></p>
+                        </div>
+                    </div>
+                </div>
+
                 @foreach ($fields as $field)
                     @php
                         $locked = $field['locked'] ?? false;
@@ -185,13 +219,69 @@
     </div>
 </div>
 
+{{-- ============ Popup Crop Foto Profil ============ --}}
+<div
+    id="photo-crop-modal"
+    data-open="false"
+    aria-hidden="true"
+    inert
+    class="photo-crop-modal fixed inset-0 z-[11000] flex items-center justify-center p-4 lg:left-64"
+>
+    <div data-photo-crop-backdrop class="photo-crop-backdrop absolute inset-0 bg-slate-900/55 backdrop-blur-[2px]"></div>
+    <div
+        data-photo-crop-panel
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="photo-crop-title"
+        class="photo-crop-panel relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+    >
+        <div class="flex items-center justify-between border-b border-blue-100 bg-blue-50 px-5 py-3">
+            <div>
+                <h3 id="photo-crop-title" class="text-base font-semibold text-primary-70">Atur Foto Profil</h3>
+                <p class="mt-0.5 text-xs text-slate-500">Geser dan ubah ukuran foto di dalam lingkaran.</p>
+            </div>
+            <button type="button" data-photo-crop-close aria-label="Tutup" class="rounded-lg p-1.5 text-primary-60 transition hover:bg-blue-100">
+                <x-lucide-x class="h-5 w-5" />
+            </button>
+        </div>
+
+        <div class="p-5">
+            <div class="relative mx-auto aspect-square w-64 max-w-full overflow-hidden rounded-xl bg-slate-900">
+                <canvas id="photo-crop-canvas" class="h-full w-full touch-none"></canvas>
+                <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <div data-crop-circle class="h-3/4 w-3/4 rounded-full border-2 border-white/90 shadow-[0_0_0_9999px_rgba(15,23,42,0.55)]"></div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <label for="photo-crop-zoom" class="mb-1 flex items-center justify-between text-xs font-medium text-primary-70">
+                    <span>Ukuran</span>
+                    <span id="photo-crop-zoom-value">100%</span>
+                </label>
+                <input id="photo-crop-zoom" type="range" min="100" max="300" value="100" step="1" class="w-full accent-primary-60">
+            </div>
+
+            <div class="mt-5 flex gap-3">
+                <button type="button" data-photo-crop-close class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-blue-300 bg-white px-4 text-xs font-semibold text-primary-60 transition hover:bg-blue-50">
+                    <x-lucide-x class="h-4 w-4" />
+                    Batal
+                </button>
+                <button type="button" id="photo-crop-save" class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-60 px-4 text-xs font-semibold text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70">
+                    <x-lucide-save class="h-4 w-4" />
+                    Simpan Foto
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 {{-- ============ Popup Konfirmasi Simpan Password ============ --}}
 <div
     id="password-confirm-modal"
     data-open="false"
     aria-hidden="true"
     inert
-    class="pwd-confirm fixed inset-0 z-70 flex items-center justify-center p-4"
+    class="pwd-confirm fixed inset-0 z-[10000] flex items-center justify-center p-4 lg:left-64"
 >
     <div data-modal-backdrop class="pwd-confirm-backdrop absolute inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
 
@@ -244,6 +334,37 @@
 </div>
 
 <style>
+    .photo-crop-modal {
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .3s ease;
+    }
+
+    .photo-crop-modal[data-open="true"] {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .photo-crop-backdrop {
+        opacity: 0;
+        transition: opacity .3s ease;
+    }
+
+    .photo-crop-modal[data-open="true"] .photo-crop-backdrop {
+        opacity: 1;
+    }
+
+    .photo-crop-panel {
+        opacity: 0;
+        transform: translateY(20px) scale(.97);
+        transition: opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1);
+    }
+
+    .photo-crop-modal[data-open="true"] .photo-crop-panel {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+
     .pwd-confirm {
         opacity: 0;
         pointer-events: none;
@@ -281,6 +402,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+        .photo-crop-modal, .photo-crop-backdrop, .photo-crop-panel,
         .pwd-confirm, .pwd-confirm-backdrop, .pwd-confirm-panel,
         .pwd-modal, .pwd-modal-panel {
             transition: none;
@@ -411,7 +533,7 @@
     data-open="false"
     aria-hidden="true"
     inert
-    class="pwd-modal fixed inset-0 z-60 flex overflow-y-auto overscroll-contain bg-[#0F3D73]/60 p-3 sm:p-4 lg:left-64"
+    class="pwd-modal fixed inset-0 z-[9000] flex overflow-y-auto overscroll-contain bg-[#0F3D73]/60 p-3 sm:p-4 lg:left-64"
     role="dialog"
     aria-modal="true"
     aria-labelledby="password-modal-title"
@@ -500,6 +622,8 @@
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
             const updateUrl = @json($updateUrl);
             const passwordUrl = @json(route('profile.password', ['role' => $user->role]));
+            const photoUpdateUrl = @json($photoUpdateUrl);
+            const photoDeleteUrl = @json($photoDeleteUrl);
 
             const setBusy = (btn, busy) => {
                 btn.disabled = busy;
@@ -508,6 +632,344 @@
 
             const errorText = (data) =>
                 Object.values(data?.errors ?? {})[0]?.[0] ?? data?.message ?? 'Terjadi kesalahan.';
+
+            /* ---------- Foto profil ---------- */
+            const photoInput = $('profile-photo-input');
+            const photoPreview = $('profile-photo-preview');
+            const photoInitial = $('profile-photo-initial');
+            const photoDelete = $('profile-photo-delete');
+            const photoError = $('profile-photo-error');
+            const cropModal = $('photo-crop-modal');
+            const cropCanvas = $('photo-crop-canvas');
+            const cropZoom = $('photo-crop-zoom');
+            const cropZoomValue = $('photo-crop-zoom-value');
+            const cropSave = $('photo-crop-save');
+            const cropCircle = cropModal?.querySelector('[data-crop-circle]');
+            const ALLOWED_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+            const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
+            const cropState = { image: null, mime: 'image/jpeg', minScale: 1, scale: 1, x: 0, y: 0, dragging: false, lastX: 0, lastY: 0 };
+            let cropInertTimer = null;
+            let cropSaving = false;
+
+            const showPhotoError = (message) => {
+                if (!photoError) return;
+                photoError.textContent = message;
+                photoError.classList.remove('hidden');
+            };
+
+            const clearPhotoError = () => photoError?.classList.add('hidden');
+            const reportPhotoError = (message, title = 'Foto Tidak Valid') => {
+                showPhotoError(message);
+                window.saskansaToast?.error?.(message, title);
+            };
+
+            const cropSize = () => cropCircle?.getBoundingClientRect().width || Math.min(cropCanvas?.clientWidth || 256, cropCanvas?.clientHeight || 256) * 0.75;
+
+            const clearCropInertTimer = () => {
+                if (cropInertTimer) {
+                    clearTimeout(cropInertTimer);
+                    cropInertTimer = null;
+                }
+            };
+
+            const setCropBusy = (busy) => {
+                cropSaving = busy;
+                setBusy(cropSave, busy);
+                if (photoDelete) setBusy(photoDelete, busy);
+                if (photoInput) {
+                    photoInput.disabled = busy;
+                    photoInput.classList.toggle('pointer-events-none', busy);
+                }
+                const uploadLabel = document.querySelector('label[for="profile-photo-input"]');
+                uploadLabel?.classList.toggle('pointer-events-none', busy);
+                uploadLabel?.classList.toggle('opacity-60', busy);
+            };
+
+            const resetCropState = () => {
+                cropState.image = null;
+                cropState.dragging = false;
+                cropState.x = 0;
+                cropState.y = 0;
+                cropState.scale = 1;
+                cropState.minScale = 1;
+            };
+
+            const openCropModal = () => {
+                if (!cropModal) return;
+                clearCropInertTimer();
+                cropModal.removeAttribute('inert');
+                cropModal.setAttribute('aria-hidden', 'false');
+                document.body.classList.add('overflow-hidden');
+                requestAnimationFrame(() => {
+                    cropModal.dataset.open = 'true';
+                    drawCrop();
+                    cropSave?.focus();
+                });
+            };
+
+            const closeCropModal = ({ keepError = false } = {}) => {
+                if (!cropModal) return;
+                cropModal.dataset.open = 'false';
+                cropModal.setAttribute('aria-hidden', 'true');
+                document.body.classList.remove('overflow-hidden');
+                clearCropInertTimer();
+                const finish = () => {
+                    if (cropModal.dataset.open !== 'true') cropModal.setAttribute('inert', '');
+                };
+                cropModal.addEventListener('transitionend', finish, { once: true });
+                cropInertTimer = setTimeout(finish, 400);
+                if (!keepError) clearPhotoError();
+                cropSave?.blur();
+            };
+
+            const clampOffsets = () => {
+                if (!cropState.image || !cropCanvas) return;
+                const size = cropSize();
+                const iw = cropState.image.naturalWidth * cropState.scale;
+                const ih = cropState.image.naturalHeight * cropState.scale;
+                const maxX = Math.max(0, (iw - size) / 2);
+                const maxY = Math.max(0, (ih - size) / 2);
+                cropState.x = Math.min(maxX, Math.max(-maxX, cropState.x));
+                cropState.y = Math.min(maxY, Math.max(-maxY, cropState.y));
+            };
+
+            const drawCrop = () => {
+                if (!cropCanvas || !cropState.image) return;
+                const ctx = cropCanvas.getContext('2d');
+                if (!ctx) return;
+                const ratio = window.devicePixelRatio || 1;
+                const w = cropCanvas.clientWidth;
+                const h = cropCanvas.clientHeight;
+                if (cropCanvas.width !== Math.round(w * ratio) || cropCanvas.height !== Math.round(h * ratio)) {
+                    cropCanvas.width = Math.round(w * ratio);
+                    cropCanvas.height = Math.round(h * ratio);
+                }
+                ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+                ctx.clearRect(0, 0, w, h);
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(0, 0, w, h);
+                const iw = cropState.image.naturalWidth * cropState.scale;
+                const ih = cropState.image.naturalHeight * cropState.scale;
+                ctx.drawImage(cropState.image, w / 2 + cropState.x - iw / 2, h / 2 + cropState.y - ih / 2, iw, ih);
+            };
+
+            const renderCroppedFile = async () => {
+                if (!cropCanvas || !cropState.image) return null;
+                const size = 512;
+                const output = document.createElement('canvas');
+                output.width = size;
+                output.height = size;
+                const ctx = output.getContext('2d');
+                const mime = ALLOWED_PHOTO_TYPES.includes(cropState.mime) ? cropState.mime : 'image/jpeg';
+                ctx.fillStyle = mime === 'image/jpeg' ? '#ffffff' : 'rgba(0,0,0,0)';
+                ctx.fillRect(0, 0, size, size);
+                const base = cropSize();
+                const scaleFactor = size / base;
+                const iw = cropState.image.naturalWidth * cropState.scale * scaleFactor;
+                const ih = cropState.image.naturalHeight * cropState.scale * scaleFactor;
+                const cx = size / 2 + cropState.x * scaleFactor;
+                const cy = size / 2 + cropState.y * scaleFactor;
+                ctx.drawImage(cropState.image, cx - iw / 2, cy - ih / 2, iw, ih);
+                const blob = await new Promise((resolve) => output.toBlob(resolve, mime, 0.92));
+                if (!blob) return null;
+                const ext = mime === 'image/png' ? 'png' : (mime === 'image/webp' ? 'webp' : 'jpg');
+                return new File([blob], `foto-profil.${ext}`, { type: mime });
+            };
+
+            const PLACEHOLDER_IMG = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            window.saskansaAvatarFallback = (img) => {
+                if (!(img instanceof HTMLImageElement)) return;
+                img.onerror = null;
+                img.src = PLACEHOLDER_IMG;
+                img.classList.add('hidden');
+                const wrap = img.closest('[data-profile-avatar]') || img.parentElement;
+                wrap?.querySelector('[data-profile-avatar-initial]')?.classList.remove('hidden');
+            };
+
+            const syncAvatars = (url) => {
+                const cacheBust = url ? `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}` : '';
+                document.querySelectorAll('[data-profile-avatar-img]').forEach((img) => {
+                    if (url) {
+                        img.onerror = () => window.saskansaAvatarFallback?.(img);
+                        img.src = cacheBust;
+                        img.classList.remove('hidden');
+                    } else {
+                        img.onerror = null;
+                        img.src = PLACEHOLDER_IMG;
+                        img.classList.add('hidden');
+                    }
+                });
+                document.querySelectorAll('[data-profile-avatar-initial]').forEach((el) => {
+                    el.classList.toggle('hidden', !!url);
+                });
+            };
+
+            photoInput?.addEventListener('change', () => {
+                if (cropSaving) return;
+                clearPhotoError();
+                const file = photoInput.files?.[0];
+                if (!file) return;
+                const mime = (file.type || '').toLowerCase();
+                const ext = (file.name.split('.').pop() || '').toLowerCase();
+                const extAllowed = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+                if ((mime && !ALLOWED_PHOTO_TYPES.includes(mime)) || (!mime && !extAllowed)) {
+                    reportPhotoError('Format foto harus JPG, JPEG, PNG, atau WEBP.');
+                    photoInput.value = '';
+                    return;
+                }
+                if (file.size > MAX_PHOTO_BYTES) {
+                    reportPhotoError('Ukuran foto maksimal 2 MB.');
+                    photoInput.value = '';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = () => {
+                    const image = new Image();
+                    image.onload = () => {
+                        cropState.image = image;
+                        cropState.mime = ALLOWED_PHOTO_TYPES.includes(mime) ? mime : (ext === 'png' ? 'image/png' : (ext === 'webp' ? 'image/webp' : 'image/jpeg'));
+                        cropState.x = 0;
+                        cropState.y = 0;
+                        const base = cropSize();
+                        cropState.minScale = Math.max(base / image.naturalWidth, base / image.naturalHeight);
+                        cropState.scale = cropState.minScale;
+                        const minPct = Math.max(1, Math.round(cropState.minScale * 100));
+                        if (cropZoom) {
+                            cropZoom.min = String(minPct);
+                            cropZoom.max = String(Math.max(minPct + 1, minPct * 3));
+                            cropZoom.value = String(minPct);
+                        }
+                        if (cropZoomValue) cropZoomValue.textContent = `${minPct}%`;
+                        clampOffsets();
+                        drawCrop();
+                        openCropModal();
+                    };
+                    image.onerror = () => {
+                        reportPhotoError('File foto tidak dapat dibaca. Silakan pilih foto lain.');
+                        photoInput.value = '';
+                    };
+                    image.src = String(reader.result || '');
+                };
+                reader.onerror = () => reportPhotoError('File foto tidak dapat dibaca. Silakan pilih foto lain.');
+                reader.readAsDataURL(file);
+            });
+
+            cropZoom?.addEventListener('input', () => {
+                cropState.scale = Number(cropZoom.value) / 100;
+                if (cropZoomValue) cropZoomValue.textContent = `${cropZoom.value}%`;
+                clampOffsets();
+                drawCrop();
+            });
+
+            cropCanvas?.addEventListener('pointerdown', (e) => {
+                if (!e.isPrimary || e.button !== 0) return;
+                cropState.dragging = true;
+                cropState.lastX = e.clientX;
+                cropState.lastY = e.clientY;
+                cropCanvas.setPointerCapture?.(e.pointerId);
+            });
+            cropCanvas?.addEventListener('pointermove', (e) => {
+                if (!cropState.dragging) return;
+                cropState.x += e.clientX - cropState.lastX;
+                cropState.y += e.clientY - cropState.lastY;
+                cropState.lastX = e.clientX;
+                cropState.lastY = e.clientY;
+                clampOffsets();
+                drawCrop();
+            });
+            const stopCropDrag = () => { cropState.dragging = false; };
+            cropCanvas?.addEventListener('pointerup', stopCropDrag);
+            cropCanvas?.addEventListener('pointercancel', stopCropDrag);
+            cropCanvas?.addEventListener('lostpointercapture', stopCropDrag);
+            window.addEventListener('pointerup', stopCropDrag);
+            window.addEventListener('resize', () => { clampOffsets(); drawCrop(); });
+
+            cropModal?.querySelectorAll('[data-photo-crop-close]').forEach((btn) => btn.addEventListener('click', () => {
+                closeCropModal();
+                photoInput.value = '';
+                resetCropState();
+            }));
+            cropModal?.querySelector('[data-photo-crop-backdrop]')?.addEventListener('click', () => {
+                closeCropModal();
+                photoInput.value = '';
+                resetCropState();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && cropModal?.dataset.open === 'true' && !cropSaving) {
+                    e.preventDefault();
+                    closeCropModal();
+                    photoInput.value = '';
+                    resetCropState();
+                }
+            });
+
+            cropSave?.addEventListener('click', async () => {
+                clearPhotoError();
+                if (!photoUpdateUrl || !cropState.image || cropSaving) return;
+                setCropBusy(true);
+                window.saskansaLoading?.show('Menyimpan foto profil...');
+                try {
+                    const file = await renderCroppedFile();
+                    if (!file) throw new Error('Gagal memproses foto.');
+                    const body = new FormData();
+                    body.append('photo', file);
+                    const res = await fetch(photoUpdateUrl, {
+                        method: 'POST',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                        body,
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        reportPhotoError(errorText(data), 'Gagal Menyimpan Foto');
+                        return;
+                    }
+                    const url = data.data?.photo_url ?? '';
+                    syncAvatars(url);
+                    if (photoDelete) photoDelete.classList.toggle('hidden', !url);
+                    closeCropModal();
+                    photoInput.value = '';
+                    resetCropState();
+                    window.saskansaToast?.success?.(data.message || 'Foto profil berhasil diperbarui.', 'Berhasil');
+                } catch (err) {
+                    reportPhotoError(err instanceof Error ? err.message : 'Terjadi kesalahan jaringan.', 'Gagal Menyimpan Foto');
+                } finally {
+                    window.saskansaLoading?.hide();
+                    setCropBusy(false);
+                }
+            });
+
+            photoDelete?.addEventListener('click', async () => {
+                if (!photoDeleteUrl || cropSaving) return;
+                const confirm = window.saskansaUi?.confirm
+                    ? await window.saskansaUi.confirm({
+                        title: 'Hapus Foto Profil',
+                        text: 'Foto profil akan dihapus dan diganti dengan inisial. Lanjutkan?',
+                    })
+                    : window.confirm('Hapus foto profil?');
+                if (!confirm) return;
+                clearPhotoError();
+                setCropBusy(true);
+                window.saskansaLoading?.show('Menghapus foto profil...');
+                try {
+                    const res = await fetch(photoDeleteUrl, {
+                        method: 'DELETE',
+                        headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrf },
+                    });
+                    const data = await res.json().catch(() => ({}));
+                    if (!res.ok || data.status !== 'success') {
+                        window.saskansaToast?.error?.(errorText(data), 'Gagal Menghapus Foto');
+                        return;
+                    }
+                    syncAvatars(null);
+                    photoDelete.classList.add('hidden');
+                    window.saskansaToast?.success?.(data.message || 'Foto profil berhasil dihapus.', 'Berhasil');
+                } catch (err) {
+                    window.saskansaToast?.error?.('Terjadi kesalahan jaringan.', 'Gagal Menghapus Foto');
+                } finally {
+                    window.saskansaLoading?.hide();
+                    setCropBusy(false);
+                }
+            });
 
             /* ---------- Mode lihat / edit ---------- */
             const form = $('profile-form');
@@ -536,13 +998,15 @@
                 });
 
                 viewActions.classList.toggle('hidden', on);
-                editActions.classList.toggle('hidden', !on);
-                editActions.classList.toggle('flex', on);
+                if (editActions) {
+                    editActions.classList.toggle('hidden', !on);
+                    editActions.classList.toggle('flex', on);
+                }
 
                 if (on) editable[0]?.focus();
             };
 
-            $('profile-edit-btn')?.addEventListener('click', () => setEditing(true));
+            if (!editAsModal) $('profile-edit-btn')?.addEventListener('click', () => setEditing(true));
 
             $('profile-cancel-btn')?.addEventListener('click', () => {
                 form?.reset();

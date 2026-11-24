@@ -11,6 +11,8 @@ class ActivityLog extends Model
 
     public const TIPE_PASSWORD = 'password';
 
+    public const TIPE_PROFIL = 'profil';
+
     public const TIPE_DATA_GURU = 'data_guru';
 
     public const TIPE_DATA_SISWA = 'data_siswa';
@@ -36,6 +38,7 @@ class ActivityLog extends Model
     public const LABELS = [
         self::TIPE_AUTH => 'Autentikasi',
         self::TIPE_PASSWORD => 'Password',
+        self::TIPE_PROFIL => 'Profil',
         self::TIPE_DATA_GURU => 'Data Guru',
         self::TIPE_DATA_SISWA => 'Data Siswa',
         self::TIPE_DATA_KELAS => 'Data Kelas',

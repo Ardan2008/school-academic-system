@@ -10,6 +10,19 @@
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
+    <script>
+        window.saskansaAvatarFallback = window.saskansaAvatarFallback || function (img) {
+            if (!(img instanceof HTMLImageElement)) return;
+            var placeholder = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+            img.onerror = null;
+            img.src = placeholder;
+            img.classList.add('hidden');
+            var wrap = img.closest('[data-profile-avatar]') || img.parentElement;
+            var initial = wrap ? wrap.querySelector('[data-profile-avatar-initial]') : null;
+            if (initial) initial.classList.remove('hidden');
+        };
+    </script>
+
     @stack('styles')
 </head>
 
@@ -155,8 +168,10 @@
                         aria-label="Menu pengguna"
                         class="flex items-center gap-2.5 rounded-xl bg-blue-50 py-1.5 pl-2.5 pr-3 shadow-lg shadow-blue-500/10 transition hover:bg-blue-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
                     >
-                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#0F3D73] shadow-sm">
-                            {{ strtoupper(substr($user->name ?? '?', 0, 1)) }}
+                        @php $navPhoto = method_exists($user, 'profilePhotoUrl') ? $user->profilePhotoUrl() : null; $navInitial = strtoupper(mb_substr(trim((string) ($user->name ?? '?')), 0, 1) ?: '?'); @endphp
+                        <span class="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white text-xs font-bold text-[#0F3D73] shadow-sm" data-profile-avatar>
+                            <img src="{{ $navPhoto ?: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=' }}" alt="" aria-hidden="true" onerror="window.saskansaAvatarFallback?.(this)" class="{{ $navPhoto ? '' : 'hidden' }} h-full w-full object-cover" data-profile-avatar-img>
+                            <span class="{{ $navPhoto ? 'hidden' : '' }} flex h-full w-full items-center justify-center" data-profile-avatar-initial>{{ $navInitial }}</span>
                         </span>
                         <span class="hidden text-left sm:block">
                             <span class="block max-w-36 truncate text-[13px] font-semibold leading-tight text-[#0F3D73]" title="{{ $user->name }}">
@@ -174,8 +189,10 @@
                         class="invisible absolute right-0 top-full z-50 mt-2 w-56 origin-top-right scale-95 rounded-2xl border border-slate-100 bg-white p-2 opacity-0 shadow-xl shadow-slate-900/10 transition-all duration-150 ease-out"
                     >
                         <div class="flex items-center gap-3 rounded-xl bg-slate-50 p-2.5">
-                            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">
-                                {{ strtoupper(substr($user->name ?? '?', 0, 1)) }}
+                            @php $dropPhoto = method_exists($user, 'profilePhotoUrl') ? $user->profilePhotoUrl() : null; $dropInitial = strtoupper(mb_substr(trim((string) ($user->name ?? '?')), 0, 1) ?: '?'); @endphp
+                            <span class="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-blue-600 text-xs font-bold text-white" data-profile-avatar>
+                                <img src="{{ $dropPhoto ?: 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=' }}" alt="" aria-hidden="true" onerror="window.saskansaAvatarFallback?.(this)" class="{{ $dropPhoto ? '' : 'hidden' }} h-full w-full object-cover" data-profile-avatar-img>
+                                <span class="{{ $dropPhoto ? 'hidden' : '' }} flex h-full w-full items-center justify-center" data-profile-avatar-initial>{{ $dropInitial }}</span>
                             </span>
                             <div class="min-w-0">
                                 <p class="truncate text-sm font-semibold text-slate-800" title="{{ $user->name }}">{{ $user->name }}</p>

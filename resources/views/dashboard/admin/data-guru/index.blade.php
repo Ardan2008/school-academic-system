@@ -286,6 +286,44 @@
                     </div>
                 </div>
 
+                <div class="sm:col-span-2 rounded-xl border border-slate-200 bg-white p-4" data-guru-penugasan-section>
+                    <div class="mb-3">
+                        <p class="text-sm font-semibold text-primary-70">Penugasan Mengajar</p>
+                        <p class="mt-0.5 text-xs text-slate-500">Pilih 1 mata pelajaran dan minimal 1 kelas yang diampu guru.</p>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="gm-penugasan-mapel" class="{{ $gLabel }}">Mata Pelajaran</label>
+                            <div class="relative">
+                                <x-lucide-book-open class="{{ $gIcon }}" />
+                                <select id="gm-penugasan-mapel" data-guru-penugasan-mapel class="{{ $gField }} appearance-none pr-10 text-slate-800">
+                                    <option value="">Pilih mata pelajaran</option>
+                                </select>
+                                <x-lucide-chevron-down class="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-primary-60" />
+                            </div>
+                            <p data-guru-penugasan-mapel-empty class="mt-1 hidden text-xs text-amber-600">Data mata pelajaran belum tersedia. Tambahkan lewat menu Data Mata Pelajaran.</p>
+                        </div>
+                        <div>
+                            <div class="mb-1.5 flex items-center justify-between gap-2">
+                                <p class="{{ $gLabel }} mb-0">Kelas Diampu</p>
+                                <span data-guru-kelas-count class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-60">0 dipilih</span>
+                            </div>
+                            <div data-guru-kelas-filter class="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                <button type="button" data-filter="semua" class="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-primary-70 shadow-sm">Semua</button>
+                                <button type="button" data-filter="10" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 10</button>
+                                <button type="button" data-filter="11" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 11</button>
+                                <button type="button" data-filter="12" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 12</button>
+                            </div>
+                            <div data-guru-penugasan-kelas class="grid max-h-52 grid-cols-2 gap-2 overflow-y-auto pr-1"></div>
+                            <p data-guru-penugasan-kelas-empty class="mt-1 hidden text-xs text-amber-600">Data kelas belum tersedia. Tambahkan lewat menu Data Kelas.</p>
+                            <div class="mt-3 border-t border-slate-100 pt-3">
+                                <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas Terpilih</p>
+                                <div data-guru-kelas-selected class="flex min-h-7 flex-wrap gap-1.5"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <p data-modal-error
                     class="hidden items-center gap-2 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-xs text-red-600 sm:col-span-2"></p>
             </form>
@@ -1435,9 +1473,88 @@
                 if (f.password.value) copyPassword(f.password.value);
             });
 
-            // Mata pelajaran dikelola lewat Penugasan Mengajar, bukan form identitas guru.
-            const fillMapelSelect = () => {};
+            const penugasanMapelSelect = form.querySelector('[data-guru-penugasan-mapel]');
+            const penugasanMapelEmpty = form.querySelector('[data-guru-penugasan-mapel-empty]');
+            const mapelOptions = Array.isArray(data.mapel_options) ? data.mapel_options : [];
+            const kelasOptions = Array.isArray(data.penugasan_kelas) ? data.penugasan_kelas : [];
+            const tingkatKelas = (k) => String(k?.kelas ?? '').split('-')[0].trim();
+            const labelKelas = (k) => k?.label || ((k?.jurusan || '-') + ' / ' + (k?.kelas || '-'));
 
+            const createKelasPicker = ({ wrap, filterWrap, selectedWrap, countEl, emptyEl, options }) => {
+                let selected = new Set();
+                let filter = 'semua';
+                const render = () => {
+                    const list = (options || []).filter((k) => filter === 'semua' || tingkatKelas(k) === filter);
+                    if (wrap) {
+                        wrap.innerHTML = list.length ? list.map((k) => {
+                            const id = String(k.id); const active = selected.has(id);
+                            return `<button type="button" data-kelas-card="${id}" aria-pressed="${active?'true':'false'}" class="group flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${active ? 'border-emerald-300 bg-emerald-50/80 ring-1 ring-emerald-200' : 'border-slate-200 bg-white hover:border-blue-200 hover:bg-blue-50/30'}">
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-xs font-semibold ${active?'text-emerald-800':'text-slate-700'}">${esc(k.kelas || '-')}</span>
+                                    <span class="block truncate text-[11px] ${active?'text-emerald-600':'text-slate-400'}">${esc(k.jurusan || '-')}</span>
+                                </span>
+                                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${active ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 text-transparent group-hover:border-blue-300'}"><svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="m5 13 4 4L19 7"/></svg></span>
+                            </button>`;
+                        }).join('') : `<div class="col-span-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-6 text-center text-xs text-slate-400">Tidak ada kelas pada filter ini.</div>`;
+                    }
+                    if (selectedWrap) {
+                        const selectedItems = (options || []).filter((k) => selected.has(String(k.id)));
+                        selectedWrap.innerHTML = selectedItems.length ? selectedItems.map((k) => `<span class="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700">${esc(labelKelas(k))}<button type="button" data-remove-kelas="${k.id}" class="rounded-full p-0.5 text-emerald-500 hover:bg-emerald-100 hover:text-emerald-700" aria-label="Hapus ${esc(labelKelas(k))}"><svg class="h-3 w-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span>`).join('') : '<span class="text-xs text-slate-400">Belum ada kelas yang dipilih.</span>';
+                    }
+                    if (countEl) countEl.textContent = `${selected.size} dipilih`;
+                    emptyEl?.classList.toggle('hidden', (options || []).length > 0);
+                    filterWrap?.querySelectorAll('[data-filter]').forEach((btn) => {
+                        const active = btn.dataset.filter === filter;
+                        btn.className = `rounded-md px-2 py-1.5 text-[11px] font-semibold transition ${active ? 'bg-white text-primary-70 shadow-sm' : 'text-slate-500 hover:text-primary-70'}`;
+                    });
+                };
+                wrap?.addEventListener('click', (e) => {
+                    const card = e.target.closest('[data-kelas-card]'); if (!card) return;
+                    const id = String(card.dataset.kelasCard);
+                    if (selected.has(id)) selected.delete(id); else selected.add(id);
+                    render();
+                });
+                selectedWrap?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-remove-kelas]'); if (!btn) return;
+                    selected.delete(String(btn.dataset.removeKelas)); render();
+                });
+                filterWrap?.addEventListener('click', (e) => {
+                    const btn = e.target.closest('[data-filter]'); if (!btn) return;
+                    filter = btn.dataset.filter || 'semua'; render();
+                });
+                return {
+                    render,
+                    setSelected: (ids = []) => { selected = new Set((ids || []).map((id) => String(id))); render(); },
+                    getSelected: () => [...selected].map((id) => Number(id)).filter(Boolean),
+                };
+            };
+
+            const guruKelasPicker = createKelasPicker({
+                wrap: form.querySelector('[data-guru-penugasan-kelas]'),
+                filterWrap: form.querySelector('[data-guru-kelas-filter]'),
+                selectedWrap: form.querySelector('[data-guru-kelas-selected]'),
+                countEl: form.querySelector('[data-guru-kelas-count]'),
+                emptyEl: form.querySelector('[data-guru-penugasan-kelas-empty]'),
+                options: kelasOptions,
+            });
+
+            const fillPenugasanMapel = (selectedId = '') => {
+                penugasanMapelSelect.innerHTML = '<option value="">Pilih mata pelajaran</option>';
+                mapelOptions.forEach((m) => {
+                    const opt = document.createElement('option');
+                    opt.value = String(m.id);
+                    opt.textContent = m.kode ? `${m.nama} (${m.kode})` : m.nama;
+                    if (String(selectedId) === String(m.id)) opt.selected = true;
+                    penugasanMapelSelect.appendChild(opt);
+                });
+                penugasanMapelEmpty?.classList.toggle('hidden', mapelOptions.length > 0);
+            };
+
+            const selectedKelasIds = () => guruKelasPicker.getSelected();
+            const setPenugasanFields = (g = null) => {
+                fillPenugasanMapel(g?.mata_pelajaran_id || '');
+                guruKelasPicker.setSelected(g?.kelas_ids || []);
+            };
             // g = null → mode tambah, g = objek guru → mode ubah
             const openModal = (g) => {
                 mode        = g ? 'edit' : 'add';
@@ -1473,6 +1590,7 @@
                     f.status.value = 'Aktif';
                     f.mapel.value = '';
                 }
+                setPenugasanFields(g);
 
                 // Urutan muncul isi formulir (dipakai animasi bertahap di CSS)
                 [...form.children].forEach((el, i) => el.style.setProperty('--k', i));
@@ -1752,9 +1870,20 @@
                     return;
                 }
 
-                // Validasi lolos, simpan dulu lalu minta konfirmasi
+                const mataPelajaranId = penugasanMapelSelect.value ? Number(penugasanMapelSelect.value) : null;
+                const kelasIds = selectedKelasIds();
+                if (mataPelajaranId && kelasIds.length === 0) {
+                    showError('Pilih minimal satu kelas untuk mata pelajaran yang dipilih.');
+                    return;
+                }
+                if (!mataPelajaranId && kelasIds.length > 0) {
+                    showError('Pilih mata pelajaran sebelum memilih kelas.');
+                    penugasanMapelSelect.focus();
+                    return;
+                }
+
                 pendingSave = {
-                    payload: { nis, nama, mapel, email, status: f.status.value, password },
+                    payload: { nis, nama, mapel, email, status: f.status.value, password, mata_pelajaran_id: mataPelajaranId, kelas_ids: kelasIds },
                 };
 
                 openConfirm(isAdd
@@ -1836,164 +1965,82 @@
             const penugasanEmpty = penugasanForm.querySelector('[data-penugasan-empty]');
             const penugasanError = penugasanForm.querySelector('[data-penugasan-error]');
             const penugasanTanpaMapel = penugasanForm.querySelector('[data-penugasan-tanpa-mapel]');
-            const penugasanTambah = penugasanForm.querySelector('[data-penugasan-tambah]');
             const penugasanSimpan = penugasanModal.querySelector('[data-penugasan-simpan]');
             const penugasanGuruBtn = document.getElementById('guru-penugasan');
             const penugasanOverview = document.getElementById('penugasan-overview-modal');
             const penugasanOverviewList = penugasanOverview?.querySelector('[data-penugasan-overview-list]');
-            let penugasanData = null;
+            const tambahPenugasanBtn = penugasanForm.querySelector('[data-penugasan-tambah]');
+            if (tambahPenugasanBtn) tambahPenugasanBtn.remove();
             let penugasanGuru = null;
             let penugasanReturnFocus = null;
-            let penugasanSiap = false;
 
-            const penugasanPesan = (text) => {
-                penugasanError.textContent = text || '';
-                penugasanError.classList.toggle('hidden', !text);
-            };
+            const penugasanPesan = (text) => { penugasanError.textContent = text || ''; penugasanError.classList.toggle('hidden', !text); };
+            const pMapelOptions = Array.isArray(data.mapel_options) ? data.mapel_options : [];
+            const pKelasOptions = Array.isArray(data.penugasan_kelas) ? data.penugasan_kelas : [];
 
-            const penugasanKosong = () => {
-                penugasanEmpty.classList.toggle('hidden', penugasanList.children.length > 0);
-            };
-
-            const segarkanInfoMapel = () => {
-                const adaMapel = (penugasanData?.mapel || []).length > 0;
-                penugasanTanpaMapel.classList.toggle('hidden', adaMapel);
-                if (penugasanTambah) penugasanTambah.disabled = !penugasanSiap || !adaMapel;
-            };
-
-            const sinkronKelas = (grup) => {
-                if (!grup) return;
-
-                const cards = [...grup.querySelectorAll('[data-penugasan-kelas-card]')];
-                const dipilih = new Set(cards
-                    .filter((card) => card.getAttribute('aria-checked') === 'true')
-                    .map((card) => card.dataset.penugasanKelasCard));
-                const visible = cards.filter((card) => !card.classList.contains('hidden'));
-                const semuaVisibleDipilih = visible.length > 0
-                    && visible.every((card) => card.getAttribute('aria-checked') === 'true');
-
-                grup.querySelectorAll('[data-penugasan-kelas] option').forEach((option) => {
-                    option.selected = dipilih.has(option.value);
-                });
-                cards.forEach((card) => {
-                    card.classList.toggle('is-selected', card.getAttribute('aria-checked') === 'true');
-                });
-
-                const hitung = grup.querySelector('[data-penugasan-kelas-count]');
-                if (hitung) hitung.textContent = `${dipilih.size} dari ${cards.length} kelas dipilih`;
-
-                const pilihSemua = grup.querySelector('[data-penugasan-kelas-all]');
-                if (pilihSemua) pilihSemua.setAttribute('aria-pressed', semuaVisibleDipilih ? 'true' : 'false');
-
-                const labelPilihSemua = grup.querySelector('[data-penugasan-kelas-all-label]');
-                if (labelPilihSemua) labelPilihSemua.textContent = semuaVisibleDipilih ? 'Batalkan Semua Pilihan' : 'Pilih Semua Kelas';
-            };
-
-            const terapkanFilterKelas = (grup, tingkat) => {
-                if (!grup) return;
-
-                grup.querySelectorAll('[data-filter-kelas]').forEach((btn) => {
-                    btn.setAttribute('aria-selected', btn.dataset.filterKelas === tingkat ? 'true' : 'false');
-                });
-                grup.querySelectorAll('[data-penugasan-kelas-card]').forEach((card) => {
-                    const cocok = tingkat === 'semua' || String(card.dataset.tingkat || '') === String(tingkat);
-                    card.classList.toggle('hidden', !cocok);
-                    card.classList.toggle('flex', cocok);
-                });
-                sinkronKelas(grup);
-            };
-
-            const tambahGrup = (mapelId = '', kelasIds = [], mapelNama = '', mapelKode = '') => {
-                const daftarMapel = penugasanData?.mapel || [];
-                const mapel = daftarMapel.find((item) => String(item.id) === String(mapelId));
-                const label = mapelNama || mapel?.nama || 'Mata pelajaran';
-                const kode = mapelKode || mapel?.kode || '';
-                const tampilanMapel = `${label}${kode ? ' · ' + kode : ''}`;
-
-                const daftarKelas = penugasanData?.kelas || [];
-                const kelasOptions = daftarKelas.map((kelas) =>
-                    `<option value="${kelas.id}"${kelasIds.includes(kelas.id) ? ' selected' : ''}>${esc(kelas.label)}</option>`)
-                    .join('');
-                const kelasCards = daftarKelas.map((kelas) => {
-                    const checked = kelasIds.includes(kelas.id);
-                    const tingkat = String(kelas.kelas ?? '').split('-')[0];
-
-                    return `
-                        <button type="button" data-penugasan-kelas-card="${kelas.id}" data-tingkat="${esc(tingkat)}" role="checkbox" aria-checked="${checked ? 'true' : 'false'}"
-                            class="penugasan-kelas-card flex w-full items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-3.5 py-3 text-left">
-                            <span class="penugasan-kelas-card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-primary-60">
-                                <x-lucide-school class="h-5 w-5" />
-                            </span>
-                            <span class="min-w-0 flex-1">
-                                <span class="block text-sm font-semibold text-slate-800">Kelas ${esc(kelas.kelas)}</span>
-                                <span class="mt-0.5 block text-xs leading-relaxed text-slate-500">Jurusan: ${esc(kelas.jurusan || '-')}</span>
-                            </span>
-                            <span class="penugasan-kelas-card-indicator flex h-6 w-6 shrink-0 items-center justify-center rounded-full" aria-hidden="true">
-                                <x-lucide-check class="h-3.5 w-3.5" stroke-width="3" />
-                            </span>
-                        </button>`;
-                }).join('');
-
-                const wrapper = document.createElement('div');
-                wrapper.dataset.penugasanGroup = '';
-                wrapper.className = 'rounded-xl border border-slate-200 bg-white p-4';
-                wrapper.innerHTML = `
-                    <div class="grid gap-4 sm:grid-cols-2">
-                        <div>
-                            <label class="mb-1.5 block text-sm font-medium text-primary-70">Mata Pelajaran</label>
-                            <div class="relative">
-                                <input type="text" data-penugasan-mapel-tampil readonly aria-readonly="true" disabled tabindex="-1"
-                                       title="Mata pelajaran ditentukan dari Data Guru dan tidak dapat diubah."
-                                       value="${esc(tampilanMapel)}"
-                                       class="h-11 w-full cursor-not-allowed select-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-600 outline-none transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-600 disabled:opacity-100 focus:border-slate-300 focus:outline-none focus:ring-0">
-                                ${ICON_LOCK}
+            let penugasanKelasPicker = null;
+            let penugasanMapelId = null;
+            const renderPenugasanModal = (selectedMapelId = '', selectedKelasIds = [], mapelLabel = '') => {
+                penugasanMapelId = selectedMapelId ? Number(selectedMapelId) : null;
+                const noMapel = !penugasanMapelId;
+                const noKelas = pKelasOptions.length === 0;
+                penugasanTanpaMapel.classList.toggle('hidden', !noKelas);
+                penugasanEmpty.classList.add('hidden');
+                if (noKelas) {
+                    penugasanTanpaMapel.innerHTML = `<p class="text-sm font-medium text-slate-700">Data kelas belum tersedia</p><p class="mt-1 text-xs text-slate-500">Tambahkan data lewat menu Data Kelas terlebih dahulu.</p>`;
+                }
+                const mapelText = mapelLabel || pMapelOptions.find((m) => String(m.id) === String(penugasanMapelId))?.nama || (penugasanGuru?.mapel_list?.[0] || penugasanGuru?.mapel || '-');
+                const mapelKode = pMapelOptions.find((m) => String(m.id) === String(penugasanMapelId))?.kode;
+                const mapelTampil = mapelKode ? `${mapelText} (${mapelKode})` : mapelText;
+                penugasanList.innerHTML = `
+                    <div class="rounded-xl border border-slate-200 bg-white p-4">
+                        <div class="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="mb-1.5 block text-sm font-medium text-primary-70">Mata Pelajaran</label>
+                                <div class="relative">
+                                    <input type="text" value="${esc(mapelTampil || '-')}" readonly disabled aria-readonly="true" tabindex="-1"
+                                        class="h-11 w-full cursor-not-allowed rounded-md border border-slate-300 bg-slate-50 px-3 pr-10 text-sm text-slate-600 outline-none">
+                                    <span class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" title="Mata pelajaran tidak dapat diubah">
+                                        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 1 1 8 0v3"/></svg>
+                                    </span>
+                                </div>
+                                <p class="mt-1 text-[11px] text-slate-400">Mata pelajaran ditetapkan dari data guru dan tidak dapat diubah di sini.</p>
+                                ${noMapel ? '<p class="mt-1 text-xs text-amber-600">Guru belum memiliki mata pelajaran. Atur lewat Tambah/Edit Data Guru.</p>' : ''}
                             </div>
-                            <input type="hidden" data-penugasan-mapel value="${mapelId}">
-                        </div>
-                        <div>
-                            <label class="mb-1.5 block text-sm font-medium text-primary-70">Kelas</label>
-                            <div data-penugasan-kelas-filter class="mb-2 grid grid-cols-4 gap-1 rounded-xl border border-slate-200 bg-slate-100 p-1" role="tablist" aria-label="Filter tingkat kelas">
-                                <button type="button" role="tab" data-filter-kelas="semua" aria-selected="true" class="penugasan-filter-btn rounded-lg px-2 py-1.5 text-xs font-semibold transition">Semua</button>
-                                <button type="button" role="tab" data-filter-kelas="10" aria-selected="false" class="penugasan-filter-btn rounded-lg px-2 py-1.5 text-xs font-semibold transition">Kelas 10</button>
-                                <button type="button" role="tab" data-filter-kelas="11" aria-selected="false" class="penugasan-filter-btn rounded-lg px-2 py-1.5 text-xs font-semibold transition">Kelas 11</button>
-                                <button type="button" role="tab" data-filter-kelas="12" aria-selected="false" class="penugasan-filter-btn rounded-lg px-2 py-1.5 text-xs font-semibold transition">Kelas 12</button>
-                            </div>
-                            <select data-penugasan-kelas multiple class="hidden">${kelasOptions}</select>
-                            <div data-penugasan-kelas-list class="penugasan-kelas-scroll max-h-52 space-y-2.5 overflow-y-auto pr-1">${kelasCards}</div>
-                            <div class="mt-2 flex flex-wrap items-center justify-between gap-2">
-                                <p data-penugasan-kelas-count class="text-[11px] font-medium text-slate-500">0 dari ${daftarKelas.length} kelas dipilih</p>
-                                <button type="button" data-penugasan-kelas-all aria-pressed="false"
-                                    class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-primary-60 transition hover:bg-blue-50 active:scale-[.98]">
-                                    <x-lucide-check-check class="h-3.5 w-3.5" />
-                                    <span data-penugasan-kelas-all-label>Pilih Semua Kelas</span>
-                                </button>
+                            <div>
+                                <div class="mb-1.5 flex items-center justify-between gap-2">
+                                    <p class="text-sm font-medium text-primary-70">Kelas Diampu</p>
+                                    <span data-p-kelas-count class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-60">0 dipilih</span>
+                                </div>
+                                <div data-p-kelas-filter class="mb-2 grid grid-cols-4 gap-1 rounded-lg border border-slate-200 bg-slate-100 p-1">
+                                    <button type="button" data-filter="semua" class="rounded-md bg-white px-2 py-1.5 text-[11px] font-semibold text-primary-70 shadow-sm">Semua</button>
+                                    <button type="button" data-filter="10" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 10</button>
+                                    <button type="button" data-filter="11" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 11</button>
+                                    <button type="button" data-filter="12" class="rounded-md px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:text-primary-70">Kelas 12</button>
+                                </div>
+                                <div data-p-kelas-wrap class="grid max-h-52 grid-cols-2 gap-2 overflow-y-auto pr-1"></div>
+                                <p data-p-kelas-empty class="mt-1 hidden text-xs text-amber-600">Data kelas belum tersedia. Tambahkan lewat menu Data Kelas.</p>
+                                <div class="mt-3 border-t border-slate-100 pt-3">
+                                    <p class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas Terpilih</p>
+                                    <div data-p-kelas-selected class="flex min-h-7 flex-wrap gap-1.5"></div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="mt-3 flex justify-end">
-                        <button type="button" data-penugasan-hapus class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50">
-                            ${ICON_DEL}
-                            Hapus penugasan ini
-                        </button>
                     </div>`;
-
-                penugasanList.appendChild(wrapper);
-                sinkronKelas(wrapper);
-                penugasanKosong();
+                penugasanKelasPicker = createKelasPicker({
+                    wrap: penugasanList.querySelector('[data-p-kelas-wrap]'),
+                    filterWrap: penugasanList.querySelector('[data-p-kelas-filter]'),
+                    selectedWrap: penugasanList.querySelector('[data-p-kelas-selected]'),
+                    countEl: penugasanList.querySelector('[data-p-kelas-count]'),
+                    emptyEl: penugasanList.querySelector('[data-p-kelas-empty]'),
+                    options: pKelasOptions,
+                });
+                penugasanKelasPicker.setSelected(selectedKelasIds || []);
             };
 
-            const tampilkanPenugasan = () => {
-                penugasanList.innerHTML = '';
-                const penugasanByMapel = new Map((penugasanData?.penugasan || []).map((item) => [String(item.mata_pelajaran_id), item]));
-                (penugasanData?.mapel || []).forEach((mapel) => {
-                    const item = penugasanByMapel.get(String(mapel.id));
-                    tambahGrup(mapel.id, item?.kelas_ids || [], item?.nama || mapel.nama, item?.kode || mapel.kode);
-                });
-                (penugasanData?.penugasan || []).forEach((item) => {
-                    if ((penugasanData?.mapel || []).some((mapel) => String(mapel.id) === String(item.mata_pelajaran_id))) return;
-                    tambahGrup(item.mata_pelajaran_id, item.kelas_ids || [], item.nama, item.kode);
-                });
-                penugasanKosong();
+            const getPenugasanModalPayload = () => {
+                const kelasIds = penugasanKelasPicker ? penugasanKelasPicker.getSelected() : [];
+                return { mata_pelajaran_id: penugasanMapelId ? Number(penugasanMapelId) : null, kelas_ids: kelasIds };
             };
 
             const tutupPenugasan = () => {
@@ -2005,41 +2052,29 @@
 
             const renderPenugasanOverview = () => {
                 if (!penugasanOverviewList) return;
-
                 if (!rows.length) {
                     penugasanOverviewList.innerHTML = '<div class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">Belum ada data guru.</div>';
                     return;
                 }
-
                 penugasanOverviewList.innerHTML = rows.map((g) => {
-                    const mapel = Array.isArray(g.mapel_list) && g.mapel_list.length ? g.mapel_list.join(', ') : (g.mapel || 'Belum ada');
+                    const mapel = (Array.isArray(g.mapel_list) && g.mapel_list.length) ? g.mapel_list[0] : (g.mapel || '-');
                     const kelas = Array.isArray(g.kelas_diampu) ? g.kelas_diampu : [];
                     const kelasBadges = kelas.length
-                        ? kelas.slice(0, 4).map((k) => `<span class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-70">${esc(k.nama || k.kelas || '-')}</span>`).join('')
-                          + (kelas.length > 4 ? `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">+${kelas.length - 4}</span>` : '')
-                        : '<span class="text-xs text-slate-400">Belum ada kelas</span>';
-
+                        ? kelas.slice(0, 2).map((k) => `<span class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-70">${esc(k.nama || k.kelas || '-')}</span>`).join('')
+                          + (kelas.length > 2 ? `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">+${kelas.length - 2} lainnya</span>` : '')
+                        : '<span class="text-xs text-slate-400">-</span>';
                     return `
                         <div class="rounded-xl border border-slate-200 bg-white p-4">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-semibold text-slate-800">${esc(g.nama || '-')}</p>
-                                    <p class="mt-0.5 text-xs text-slate-500">${esc(g.nip || '-')} · ${esc(g.email || '-')}</p>
+                                    <p class="mt-0.5 text-xs text-slate-500">${esc(g.nip || '-')} ? ${esc(g.email || '-')}</p>
                                     <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                                        <div>
-                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mata Pelajaran Diampu</p>
-                                            <p class="mt-0.5 text-sm text-slate-700">${esc(mapel)}</p>
-                                        </div>
-                                        <div>
-                                            <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas yang Diajar</p>
-                                            <div class="mt-1 flex flex-wrap gap-1.5">${kelasBadges}</div>
-                                        </div>
+                                        <div><p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mata Pelajaran</p><p class="mt-0.5 text-sm text-slate-700">${esc(mapel || '-')}</p></div>
+                                        <div><p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas yang Diajar</p><div class="mt-1 flex flex-wrap gap-1.5">${kelasBadges}</div></div>
                                     </div>
                                 </div>
-                                <button type="button" data-overview-kelola="${g.id}" title="Kelola penugasan" aria-label="Kelola penugasan ${esc(g.nama || '')}"
-                                    class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">
-                                    ${ICON_PENUGASAN}
-                                </button>
+                                <button type="button" data-overview-kelola="${g.id}" title="Kelola penugasan" aria-label="Kelola penugasan ${esc(g.nama || '')}" class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_PENUGASAN}</button>
                             </div>
                         </div>`;
                 }).join('');
@@ -2053,15 +2088,12 @@
                 penugasanOverview.removeAttribute('aria-hidden');
                 penugasanOverview.removeAttribute('inert');
             };
-
             const tutupPenugasanOverview = () => {
                 if (!penugasanOverview) return;
                 penugasanOverview.dataset.open = 'false';
                 penugasanOverview.setAttribute('aria-hidden', 'true');
                 penugasanOverview.setAttribute('inert', '');
-                if (!penugasanModal || penugasanModal.dataset.open !== 'true') {
-                    penugasanReturnFocus?.focus();
-                }
+                if (!penugasanModal || penugasanModal.dataset.open !== 'true') penugasanReturnFocus?.focus();
             };
 
             async function bukaPenugasan(g) {
@@ -2071,152 +2103,47 @@
                 penugasanModal.removeAttribute('inert');
                 penugasanModal.setAttribute('aria-hidden', 'false');
                 requestAnimationFrame(() => { penugasanModal.dataset.open = 'true'; });
-
-                penugasanList.innerHTML = '';
-                penugasanData = null;
-                penugasanSiap = false;
-                penugasanKosong();
-                penugasanPesan('');
                 penugasanLoading.classList.remove('hidden');
                 penugasanSimpan.disabled = true;
-                segarkanInfoMapel();
-
+                penugasanPesan('');
                 try {
                     const res = await jsonRequest(urlFor(g.id) + '/penugasan', 'GET');
                     const result = await res.json().catch(() => null);
-
-                    if (!res.ok || !result || result.status !== 'success') {
-                        throw new Error((result && result.message) || 'Gagal memuat penugasan.');
-                    }
-
-                    penugasanData = result.data;
-                    penugasanSiap = true;
-                    tampilkanPenugasan();
+                    if (!res.ok || !result || result.status !== 'success') throw new Error((result && result.message) || 'Gagal memuat penugasan.');
+                    const freshGuru = result.data.guru || g;
+                    const idx = rows.findIndex((r) => r.id === freshGuru.id); if (idx >= 0) rows[idx] = freshGuru;
+                    renderPenugasanModal(freshGuru.mata_pelajaran_id || '', freshGuru.kelas_ids || []);
+                    penugasanSimpan.disabled = false;
                 } catch (err) {
                     penugasanPesan(err.message || 'Gagal memuat penugasan. Coba lagi.');
+                    renderPenugasanModal(g.mata_pelajaran_id || '', g.kelas_ids || []);
+                    penugasanSimpan.disabled = false;
                 } finally {
                     penugasanLoading.classList.add('hidden');
-                    penugasanSimpan.disabled = !penugasanSiap;
-                    segarkanInfoMapel();
                 }
             }
-
-            if (penugasanTambah) {
-                penugasanTambah.addEventListener('click', () => {
-                    const dipakai = [...penugasanList.querySelectorAll('[data-penugasan-mapel]')]
-                        .map((field) => field.value)
-                        .filter(Boolean);
-                    const tersedia = (penugasanData?.mapel || []).find((mapel) => !dipakai.includes(String(mapel.id)));
-
-                    if (!tersedia) {
-                        alertError('Tidak dapat menambah', 'Semua mata pelajaran sudah ditambahkan.');
-                        return;
-                    }
-
-                    penugasanPesan('');
-                    tambahGrup(tersedia.id, [], tersedia.nama, tersedia.kode);
-                });
-            }
-
-            penugasanList.addEventListener('click', (e) => {
-                const filterBtn = e.target.closest('[data-filter-kelas]');
-                if (filterBtn) {
-                    terapkanFilterKelas(filterBtn.closest('[data-penugasan-group]'), filterBtn.dataset.filterKelas);
-                    return;
-                }
-
-                const pilihSemua = e.target.closest('[data-penugasan-kelas-all]');
-                if (pilihSemua) {
-                    const grup = pilihSemua.closest('[data-penugasan-group]');
-                    const cards = [...grup.querySelectorAll('[data-penugasan-kelas-card]')];
-                    const visible = cards.filter((card) => !card.classList.contains('hidden'));
-                    const semuaDipilih = visible.length > 0
-                        && visible.every((card) => card.getAttribute('aria-checked') === 'true');
-
-                    visible.forEach((card) => {
-                        card.setAttribute('aria-checked', semuaDipilih ? 'false' : 'true');
-                    });
-                    sinkronKelas(grup);
-                    return;
-                }
-
-                const card = e.target.closest('[data-penugasan-kelas-card]');
-                if (!card) return;
-
-                const checked = card.getAttribute('aria-checked') === 'true';
-                card.setAttribute('aria-checked', checked ? 'false' : 'true');
-                sinkronKelas(card.closest('[data-penugasan-group]'));
-            });
-
-            penugasanList.addEventListener('click', async (e) => {
-                const btn = e.target.closest('[data-penugasan-hapus]');
-                if (!btn) return;
-
-                const ok = (await Swal.fire({
-                    icon: 'warning',
-                    title: 'Hapus penugasan ini?',
-                    text: 'Penugasan yang dihapus baru berlaku setelah disimpan.',
-                    showCancelButton: true,
-                    confirmButtonText: 'Ya, Hapus',
-                    cancelButtonText: 'Batal',
-                })).isConfirmed;
-
-                if (!ok) return;
-
-                btn.closest('[data-penugasan-group]').remove();
-                penugasanKosong();
-            });
 
             penugasanForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-
-                if (!penugasanGuru || !penugasanSiap) return;
-
-                const penugasan = [...penugasanList.querySelectorAll('[data-penugasan-group]')]
-                    .map((group) => ({
-                        mata_pelajaran_id: Number(group.querySelector('[data-penugasan-mapel]').value),
-                        kelas_ids: [...group.querySelector('[data-penugasan-kelas]').selectedOptions].map((option) => Number(option.value)),
-                    }))
-                    .filter((item) => item.kelas_ids.length > 0);
-
-                if (penugasan.some((item) => !item.mata_pelajaran_id)) {
-                    penugasanPesan('Mata pelajaran wajib dipilih pada setiap penugasan.');
-                    return;
-                }
-
-                if (penugasan.some((item) => item.kelas_ids.length === 0)) {
-                    penugasanPesan('Minimal satu kelas wajib dipilih pada setiap penugasan.');
-                    return;
-                }
-
-                const mapelIds = penugasan.map((item) => item.mata_pelajaran_id);
-                if (new Set(mapelIds).size !== mapelIds.length) {
-                    penugasanPesan('Mata pelajaran tidak boleh duplikat dalam satu guru.');
-                    return;
-                }
-
+                if (!penugasanGuru) return;
+                const payload = getPenugasanModalPayload();
+                if (!payload.mata_pelajaran_id) { penugasanPesan('Mata pelajaran guru belum ditetapkan. Atur lewat Tambah/Edit Data Guru.'); return; }
+                if (payload.kelas_ids.length === 0) { penugasanPesan('Pilih minimal satu kelas untuk guru ini.'); return; }
                 penugasanPesan('');
                 const loading = showLoading('Menyimpan penugasan mengajar...');
                 penugasanSimpan.disabled = true;
-
                 try {
-                    const res = await jsonRequest(urlFor(penugasanGuru.id) + '/penugasan', 'PUT', { penugasan });
+                    const res = await jsonRequest(urlFor(penugasanGuru.id) + '/penugasan', 'PUT', payload);
                     const result = await res.json().catch(() => null);
-
                     if (!res.ok || !result || result.status !== 'success') {
                         const errors = (result && result.errors) || {};
                         penugasanPesan(Object.values(errors).flat()[0] || (result && result.message) || 'Gagal menyimpan penugasan.');
                         return;
                     }
-
                     const saved = result.data.guru;
                     const index = rows.findIndex((r) => r.id === saved.id);
                     if (index >= 0) rows[index] = saved;
-
-                    refreshFilters();
-                    syncBadge();
-                    updateStats();
-                    render();
+                    refreshFilters(); syncBadge(); updateStats(); render();
                     tutupPenugasan();
                     toast(`Penugasan mengajar ${saved.nama} berhasil disimpan.`);
                 } catch (err) {
@@ -2232,9 +2159,7 @@
             penugasanModal.querySelector('[data-penugasan-batal]').addEventListener('click', tutupPenugasan);
 
             if (penugasanOverview) {
-                penugasanOverview.querySelectorAll('[data-penugasan-overview-tutup]').forEach((btn) => {
-                    btn.addEventListener('click', tutupPenugasanOverview);
-                });
+                penugasanOverview.querySelectorAll('[data-penugasan-overview-tutup]').forEach((btn) => btn.addEventListener('click', tutupPenugasanOverview));
                 penugasanOverview.querySelector('[data-penugasan-overview-backdrop]')?.addEventListener('click', tutupPenugasanOverview);
                 penugasanOverview.addEventListener('click', async (e) => {
                     const btn = e.target.closest('[data-overview-kelola]');

@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class ProfileTest extends TestCase
@@ -49,6 +51,130 @@ class ProfileTest extends TestCase
             ->assertDontSee('id="profile-edit-btn"', false)
             ->assertSee('Perubahan data profil dilakukan oleh administrator sekolah.')
             ->assertSee('Ubah Password');
+    }
+
+    public function test_profile_photo_upload_replace_and_delete_for_each_role(): void
+    {
+        Storage::fake('public');
+
+        foreach (['admin' => 'admin', 'guru' => 'guru', 'siswa' => 'siswa'] as $role => $factory) {
+            $user = User::factory()->{$factory}()->create([
+                'password' => 'Lama123',
+                'must_change_password' => false,
+            ]);
+
+            $first = UploadedFile::fake()->image('foto.jpg', 300, 300)->size(500);
+            $this->actingAs($user)
+                ->withHeader('Accept', 'application/json')
+                ->post(route('profile.photo.update', ['role' => $role]), ['photo' => $first])
+                ->assertOk()
+                ->assertJsonPath('status', 'success')
+                ->assertJsonStructure(['data' => ['photo_url']]);
+
+            $firstPath = $user->fresh()->profile_photo_path;
+            $this->assertNotNull($firstPath);
+            $this->assertStringStartsWith("profile-photos/{$role}/", $firstPath);
+            Storage::disk('public')->assertExists($firstPath);
+
+            $second = UploadedFile::fake()->image('baru.png', 300, 300)->size(500);
+            $this->actingAs($user)
+                ->withHeader('Accept', 'application/json')
+                ->post(route('profile.photo.update', ['role' => $role]), ['photo' => $second])
+                ->assertOk()
+                ->assertJsonPath('status', 'success');
+
+            $secondPath = $user->fresh()->profile_photo_path;
+            $this->assertNotNull($secondPath);
+            $this->assertNotSame($firstPath, $secondPath);
+            Storage::disk('public')->assertMissing($firstPath);
+            Storage::disk('public')->assertExists($secondPath);
+
+            $this->actingAs($user)
+                ->get(route('dashboard.'.$role.'.profile.index'))
+                ->assertOk()
+                ->assertSee('data-profile-avatar-img', false)
+                ->assertSee('profile-photos/'.$role, false)
+                ->assertSee('onerror="window.saskansaAvatarFallback?.(this)"', false)
+                ->assertDontSee('alt="Foto profil', false);
+
+            $this->actingAs($user)
+                ->withHeader('Accept', 'application/json')
+                ->delete(route('profile.photo.delete', ['role' => $role]))
+                ->assertOk()
+                ->assertJsonPath('status', 'success')
+                ->assertJsonPath('data.photo_url', null);
+
+            $this->assertNull($user->fresh()->profile_photo_path);
+            Storage::disk('public')->assertMissing($secondPath);
+
+            $this->actingAs($user)
+                ->get(route('dashboard.'.$role.'.profile.index'))
+                ->assertOk()
+                ->assertSee('data-profile-avatar-initial', false);
+        }
+    }
+
+    public function test_profile_photo_does_not_affect_other_users(): void
+    {
+        Storage::fake('public');
+        $admin = User::factory()->admin()->create(['must_change_password' => false]);
+        $guru = User::factory()->guru()->create(['must_change_password' => false]);
+        $siswa = User::factory()->siswa()->create(['must_change_password' => false]);
+
+        $this->actingAs($admin)
+            ->withHeader('Accept', 'application/json')
+            ->post(route('profile.photo.update', ['role' => 'admin']), [
+                'photo' => UploadedFile::fake()->image('admin.jpg', 200, 200),
+            ])
+            ->assertOk();
+
+        $adminPath = $admin->fresh()->profile_photo_path;
+        $this->assertNotNull($adminPath);
+        Storage::disk('public')->assertExists($adminPath);
+        $this->assertNull($guru->fresh()->profile_photo_path);
+        $this->assertNull($siswa->fresh()->profile_photo_path);
+    }
+
+    public function test_profile_photo_validation_rejects_invalid_format_and_size(): void
+    {
+        Storage::fake('public');
+        $user = User::factory()->guru()->create(['must_change_password' => false]);
+
+        $this->actingAs($user)
+            ->withHeader('Accept', 'application/json')
+            ->post(route('profile.photo.update', ['role' => 'guru']), [
+                'photo' => UploadedFile::fake()->create('foto.gif', 100, 'image/gif'),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->actingAs($user)
+            ->withHeader('Accept', 'application/json')
+            ->post(route('profile.photo.update', ['role' => 'guru']), [
+                'photo' => UploadedFile::fake()->image('besar.jpg', 100, 100)->size(2049),
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->assertNull($user->fresh()->profile_photo_path);
+    }
+
+    public function test_profile_photo_rejects_url_role_mismatch(): void
+    {
+        Storage::fake('public');
+        $siswa = User::factory()->siswa()->create(['must_change_password' => false]);
+
+        $this->actingAs($siswa)
+            ->withHeader('Accept', 'application/json')
+            ->post(route('profile.photo.update', ['role' => 'admin']), [
+                'photo' => UploadedFile::fake()->image('foto.jpg', 100, 100),
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($siswa)
+            ->withHeader('Accept', 'application/json')
+            ->delete(route('profile.photo.delete', ['role' => 'admin']))
+            ->assertForbidden();
     }
 
     public function test_change_password_requires_valid_current_password(): void

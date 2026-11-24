@@ -1606,12 +1606,15 @@
                     const saved = result.data.siswa;
                     const index = rows.findIndex((r) => r.id === saved.id);
 
-                    if (index >= 0) rows[index] = saved;
-                    else rows.push(saved);
-
-                    rows.sort((a, b) => Number(b.tingkat) - Number(a.tingkat)
-                        || String(a.kelas).localeCompare(String(b.kelas))
-                        || a.nama.localeCompare(b.nama));
+                    if (index >= 0) {
+                        // Edit: pertahankan posisi baris agar urutan tabel tidak berubah.
+                        rows[index] = saved;
+                    } else {
+                        rows.push(saved);
+                        rows.sort((a, b) => Number(b.tingkat) - Number(a.tingkat)
+                            || String(a.kelas).localeCompare(String(b.kelas))
+                            || a.nama.localeCompare(b.nama));
+                    }
 
                     flashId = saved.id;
 
