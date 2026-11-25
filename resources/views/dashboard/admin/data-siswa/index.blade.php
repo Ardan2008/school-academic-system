@@ -1441,6 +1441,13 @@
                     f.status.value = 'Aktif';
                 }
 
+                const perubahanSiswa = window.saskansaChange?.bind?.(form, {
+                    save: '[data-modal-save]',
+                    always: !s,
+                });
+                perubahanSiswa?.busy?.(false);
+                if (s) perubahanSiswa?.snapshot?.();
+
                 // Urutan muncul isi formulir (dipakai animasi bertahap di CSS)
                 [...form.children].forEach((el, i) => el.style.setProperty('--k', i));
 

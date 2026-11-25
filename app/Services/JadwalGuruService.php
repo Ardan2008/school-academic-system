@@ -8,6 +8,7 @@ use App\Models\JamBelajarKonfigurasi;
 use App\Models\SesiJamBelajar;
 use App\Models\User;
 use App\Support\Kelas;
+use App\Support\PerbandinganData;
 use App\Support\StrukturKelas;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -115,7 +116,7 @@ class JadwalGuruService
             ->values();
 
         $items = $milik
-            ->map(fn (JadwalPelajaran $item) => $this->itemData($item, $semua, $konfigurasi))
+            ->map(fn (JadwalPelajaran $item) => $this->itemData($item, $semua, $konfigurasi, $guru))
             ->map(function (array $item) use ($sesiPelajaran): array {
                 $item['di_luar_sesi'] = ! $sesiPelajaran->contains(
                     fn (array $sesi) => $item['mulai'] >= $sesi['mulai']
@@ -308,6 +309,334 @@ class JadwalGuruService
     }
 
     /**
+     * Detail konflik yang melibatkan satu jadwal beserta seluruh alternatif
+     * penempatan untuk setiap jadwal yang terlibat.
+     *
+     * @param  array{tahun_ajaran: string, semester: string}  $periode
+     * @return array{grup: array<string, mixed>, alternatif: array<int, array<string, mixed>>}|null
+     */
+    public function detailBentrok(int $jadwalId, array $periode): ?array
+    {
+        $konfigurasi = $this->jamBelajar->konfigurasi();
+        $semua = $this->queryJadwal($periode)->get();
+        $jadwal = $semua->firstWhere('id', $jadwalId);
+
+        if ($jadwal === null) {
+            return null;
+        }
+
+        $items = $this->urutanJadwal($semua, $konfigurasi)
+            ->map(fn (JadwalPelajaran $item): array => $this->itemData($item, $semua, $konfigurasi));
+        $grup = $this->grupBentrok($semua, $items, $semua, $konfigurasi)
+            ->first(fn (array $item): bool => collect($item['items'])
+                ->contains(fn (array $jadwalItem): bool => (int) $jadwalItem['id'] === $jadwalId));
+
+        if ($grup === null) {
+            return null;
+        }
+
+        $alternatif = collect($grup['items'])
+            ->map(function (array $item) use ($semua, $konfigurasi): array {
+                $model = $semua->firstWhere('id', $item['id']);
+
+                return [
+                    'id' => (int) $item['id'],
+                    'guru' => (string) $item['guru'],
+                    'mapel' => (string) $item['mapel'],
+                    'kelas' => (string) $item['kelas'].($item['jurusan'] !== '' ? ' '.$item['jurusan'] : ''),
+                    'ruang' => (string) $item['ruang'],
+                    'hari' => (string) $item['hari'],
+                    'sesi_label' => (string) $item['sesi_label'],
+                    'jam' => (string) $item['label'],
+                    'opsi' => $model === null ? [] : $this->alternatifPenempatan($model, $semua, $konfigurasi),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return ['grup' => $grup, 'alternatif' => $alternatif];
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    public function alternatifPenempatan(
+        JadwalPelajaran $jadwal,
+        Collection $semua,
+        JamBelajarKonfigurasi $konfigurasi,
+    ): array {
+        $ruang = trim((string) $jadwal->ruang);
+        $hasil = [];
+
+        foreach ($this->jamBelajar->hariAktif($konfigurasi) as $hari) {
+            foreach ($this->jamBelajar->opsiPelajaran() as $sesi) {
+                if ($hari === $jadwal->hari && (int) $sesi['id'] === (int) $jadwal->sesi_id) {
+                    continue;
+                }
+
+                $mulai = (string) $sesi['mulai'];
+                $selesai = (string) $sesi['selesai'];
+                $evaluasi = $this->evaluasiSlot($semua, $jadwal, $hari, $mulai, $selesai, $konfigurasi);
+
+                if (! $evaluasi['aman']) {
+                    continue;
+                }
+
+                $hasil[] = [
+                    'hari' => $hari,
+                    'sesi_id' => (int) $sesi['id'],
+                    'sesi_label' => 'Sesi '.(int) $sesi['nomor'].' · '.$sesi['nama'],
+                    'jam' => $mulai.'–'.$selesai,
+                    'ruang' => $ruang !== '' ? $ruang : '-',
+                    'tersedia' => true,
+                    'status_label' => 'Tersedia',
+                    'keterangan' => 'Guru, kelas, dan ruangan tersedia pada waktu ini.',
+                ];
+            }
+        }
+
+        return $hasil;
+    }
+
+    /**
+     * Pratinjau pemindahan tanpa menulis database.
+     *
+     * @param  array{tahun_ajaran: string, semester: string}  $periode
+     * @return array<string, mixed>
+     */
+    public function pratinjauPemindahan(int $jadwalId, string $hari, int $sesiId, array $periode): array
+    {
+        $konfigurasi = $this->jamBelajar->konfigurasi();
+        $semua = $this->queryJadwal($periode)->get();
+        $jadwal = $semua->firstWhere('id', $jadwalId);
+
+        if ($jadwal === null) {
+            abort(404);
+        }
+
+        return $this->evaluasiPemindahan(
+            $semua,
+            $jadwal,
+            $hari,
+            SesiJamBelajar::query()->find($sesiId),
+            $konfigurasi,
+        );
+    }
+
+    /**
+     * Simpan pemindahan setelah validasi ulang di dalam satu transaksi.
+     *
+     * @param  array{tahun_ajaran: string, semester: string}  $periode
+     * @return array<string, mixed>
+     */
+    public function pindahkanJadwalBentrok(
+        int $jadwalId,
+        string $hari,
+        int $sesiId,
+        array $periode,
+        User $actor,
+    ): array {
+        return DB::transaction(function () use ($jadwalId, $hari, $sesiId, $periode, $actor): array {
+            $konfigurasi = $this->jamBelajar->konfigurasi();
+
+            JadwalPelajaran::query()
+                ->where('tahun_ajaran', $periode['tahun_ajaran'])
+                ->where('semester', $periode['semester'])
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get(['id']);
+
+            $semua = $this->queryJadwal($periode)->get();
+            $jadwal = $semua->firstWhere('id', $jadwalId);
+            $sesi = SesiJamBelajar::query()->find($sesiId);
+
+            if ($jadwal === null) {
+                abort(404);
+            }
+
+            $pratinjau = $this->evaluasiPemindahan($semua, $jadwal, $hari, $sesi, $konfigurasi);
+
+            if (! $pratinjau['aman']) {
+                throw ValidationException::withMessages(['hari' => $pratinjau['pesan']]);
+            }
+
+            $target = [
+                'hari' => $hari,
+                'sesi_id' => (int) $sesi->id,
+                'jam_mulai' => $pratinjau['sesudah']['mulai'],
+                'jam_selesai' => $pratinjau['sesudah']['selesai'],
+            ];
+            $adaPerubahan = ! PerbandinganData::identik($jadwal, $target);
+
+            $sebelum = [
+                'id' => (int) $jadwal->id,
+                'hari' => (string) $jadwal->hari,
+                'sesi_id' => $jadwal->sesi_id === null ? null : (int) $jadwal->sesi_id,
+                'jam_mulai' => substr((string) $jadwal->jam_mulai, 0, 5),
+                'jam_selesai' => substr((string) $jadwal->jam_selesai, 0, 5),
+            ];
+
+            if ($adaPerubahan) {
+                $jadwal->update($target);
+            }
+
+            $semuaBaru = $semua->map(function (JadwalPelajaran $item) use ($jadwal, $jadwalId): JadwalPelajaran {
+                return (int) $item->id === $jadwalId ? $jadwal : $item;
+            });
+            $setelah = $this->evaluasiSlot(
+                $semuaBaru,
+                $jadwal,
+                $hari,
+                $pratinjau['sesudah']['mulai'],
+                $pratinjau['sesudah']['selesai'],
+                $konfigurasi,
+            );
+
+            if (! $setelah['aman']) {
+                throw ValidationException::withMessages([
+                    'hari' => 'Validasi ulang menemukan bentrok pada jadwal baru. Perubahan dibatalkan.',
+                ]);
+            }
+
+            if ($adaPerubahan) {
+                $this->catatRiwayat($actor, [
+                    'batch' => (string) Str::uuid(),
+                    'aksi' => 'pindahkan-bentrok',
+                    'jumlah' => 1,
+                    'guru' => $jadwal->guru?->name ?? '-',
+                    'jadwal_id' => (int) $jadwal->id,
+                    'sebelum' => $sebelum,
+                    'sesudah' => $target,
+                ]);
+            }
+
+            return [
+                'id' => (int) $jadwal->id,
+                'hari' => $hari,
+                'sesi_id' => (int) $sesi->id,
+                'jam_mulai' => $pratinjau['sesudah']['mulai'],
+                'jam_selesai' => $pratinjau['sesudah']['selesai'],
+                'validasi_ulang' => $setelah,
+            ];
+        });
+    }
+
+    /**
+     * @param  Collection<int, JadwalPelajaran>  $semua
+     * @return array<string, mixed>
+     */
+    private function evaluasiPemindahan(
+        Collection $semua,
+        JadwalPelajaran $jadwal,
+        string $hari,
+        ?SesiJamBelajar $sesi,
+        JamBelajarKonfigurasi $konfigurasi,
+    ): array {
+        [$mulai, $selesai] = $this->validasiSesiTujuan($hari, $sesi, $konfigurasi);
+        $evaluasi = $this->evaluasiSlot($semua, $jadwal, $hari, $mulai, $selesai, $konfigurasi);
+        $sebelum = $this->detailJadwalKonflik($jadwal, $this->waktu($jadwal, $konfigurasi));
+        $sesudah = $this->detailJadwalKonflik($jadwal, ['mulai' => $mulai, 'selesai' => $selesai]);
+        $sesudah['hari'] = $hari;
+        $sesudah['sesi_label'] = 'Sesi '.$this->jamBelajar->nomorPelajaran($sesi).' · '.$sesi->nama;
+        $sesudah['jam'] = $mulai.'–'.$selesai;
+        $sesudah['mulai'] = $mulai;
+        $sesudah['selesai'] = $selesai;
+
+        return [
+            'aman' => $evaluasi['aman'],
+            'pesan' => $evaluasi['aman']
+                ? 'Jadwal baru tidak menimbulkan bentrok guru, kelas, atau ruangan.'
+                : 'Jadwal baru masih mengalami bentrok. Pilih hari dan sesi lain.',
+            'pemeriksaan' => $evaluasi['pemeriksaan'],
+            'konflik' => $evaluasi['konflik'],
+            'sebelum' => $sebelum,
+            'sesudah' => $sesudah,
+        ];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function validasiSesiTujuan(
+        string $hari,
+        ?SesiJamBelajar $sesi,
+        JamBelajarKonfigurasi $konfigurasi,
+    ): array {
+        if (! in_array($hari, $this->jamBelajar->hariAktif($konfigurasi), true)) {
+            throw ValidationException::withMessages(['hari' => 'Hari yang dipilih tidak tersedia.']);
+        }
+
+        if ($sesi === null
+            || $sesi->jenis !== SesiJamBelajar::JENIS_PELAJARAN
+            || (int) $sesi->jam_belajar_konfigurasi_id !== (int) $konfigurasi->id) {
+            throw ValidationException::withMessages(['sesi_id' => 'Pilih sesi jam pelajaran yang tersedia.']);
+        }
+
+        $mulai = substr((string) $sesi->jam_mulai, 0, 5);
+        $selesai = substr((string) $sesi->jam_selesai, 0, 5);
+
+        if ($mulai >= $selesai || ! $this->jamBelajar->dalamRentang($mulai, $selesai)) {
+            throw ValidationException::withMessages(['sesi_id' => 'Waktu sesi yang dipilih tidak valid.']);
+        }
+
+        return [$mulai, $selesai];
+    }
+
+    /**
+     * @param  Collection<int, JadwalPelajaran>  $semua
+     * @return array{aman: bool, pemeriksaan: array<int, array{label: string, aman: bool}>, konflik: array<int, array<string, mixed>>}
+     */
+    private function evaluasiSlot(
+        Collection $semua,
+        JadwalPelajaran $jadwal,
+        string $hari,
+        string $mulai,
+        string $selesai,
+        JamBelajarKonfigurasi $konfigurasi,
+    ): array {
+        $kelas = Kelas::normalize((string) $jadwal->kelas);
+        $jurusan = trim((string) $jadwal->jurusan);
+        $ruang = trim((string) $jadwal->ruang);
+        $guruBentrok = collect();
+        $kelasBentrok = collect();
+        $ruangBentrok = collect();
+
+        foreach ($semua as $calon) {
+            if ((int) $calon->id === (int) $jadwal->id || (string) $calon->hari !== $hari) {
+                continue;
+            }
+
+            if (! $this->beririsan($this->waktu($calon, $konfigurasi), $mulai, $selesai)) {
+                continue;
+            }
+
+            if ((int) $calon->guru_id === (int) $jadwal->guru_id) {
+                $guruBentrok->push($calon);
+            }
+
+            if (Kelas::normalize((string) $calon->kelas) === $kelas
+                && $this->jurusanCocok($jurusan, trim((string) $calon->jurusan))) {
+                $kelasBentrok->push($calon);
+            }
+
+            if ($ruang !== ''
+                && strcasecmp(trim((string) $calon->ruang), $ruang) === 0) {
+                $ruangBentrok->push($calon);
+            }
+        }
+
+        return [
+            'aman' => $guruBentrok->isEmpty() && $kelasBentrok->isEmpty() && $ruangBentrok->isEmpty(),
+            'pemeriksaan' => [
+                ['label' => 'Guru tersedia', 'aman' => $guruBentrok->isEmpty()],
+                ['label' => 'Kelas tidak ada pelajaran lain', 'aman' => $kelasBentrok->isEmpty()],
+                ['label' => 'Ruangan tersedia', 'aman' => $ruangBentrok->isEmpty()],
+            ],
+            'konflik' => $this->detailKonflikCek($guruBentrok, $kelasBentrok, $ruangBentrok, $konfigurasi),
+        ];
+    }
+
+    /**
      * Terapkan semua perubahan dalam satu transaksi dan simpan snapshot
      * supaya bisa dibatalkan dari riwayat.
      *
@@ -436,27 +765,36 @@ class JadwalGuruService
                 /** @var SesiJamBelajar $sesi */
                 $sesi = $itemRencana['sesi'];
 
+                $target = [
+                    'sesi_id' => (int) $sesi->id,
+                    'jam_mulai' => $itemRencana['mulai'],
+                    'jam_selesai' => $itemRencana['selesai'],
+                ];
+
+                if (PerbandinganData::identik($jadwal, $target)) {
+                    continue;
+                }
+
                 $snapshots[] = [
                     'id' => (int) $id,
+                    'hari' => (string) $jadwal->hari,
                     'sesi_id' => $jadwal->sesi_id === null ? null : (int) $jadwal->sesi_id,
                     'jam_mulai' => substr((string) $jadwal->jam_mulai, 0, 5),
                     'jam_selesai' => substr((string) $jadwal->jam_selesai, 0, 5),
                 ];
 
-                $jadwal->update([
-                    'sesi_id' => (int) $sesi->id,
-                    'jam_mulai' => $itemRencana['mulai'],
-                    'jam_selesai' => $itemRencana['selesai'],
-                ]);
+                $jadwal->update($target);
             }
 
-            $this->catatRiwayat($actor, [
-                'batch' => $batch,
-                'aksi' => 'sesuaikan',
-                'jumlah' => count($snapshots),
-                'snapshots' => $snapshots,
-                'dibatalkan' => false,
-            ]);
+            if ($snapshots !== []) {
+                $this->catatRiwayat($actor, [
+                    'batch' => $batch,
+                    'aksi' => 'sesuaikan',
+                    'jumlah' => count($snapshots),
+                    'snapshots' => $snapshots,
+                    'dibatalkan' => false,
+                ]);
+            }
 
             return ['batch' => $batch, 'jumlah' => count($snapshots)];
         });
@@ -564,26 +902,35 @@ class JadwalGuruService
                     }
                 }
 
-                $jadwal->update([
+                $target = [
+                    'hari' => $snapshot['hari'] ?? $jadwal->hari,
                     'sesi_id' => $sesiId > 0 ? $sesiId : null,
                     'jam_mulai' => $snapshot['jam_mulai'] ?? $jadwal->jam_mulai,
                     'jam_selesai' => $snapshot['jam_selesai'] ?? $jadwal->jam_selesai,
-                ]);
+                ];
+
+                if (PerbandinganData::identik($jadwal, $target)) {
+                    continue;
+                }
+
+                $jadwal->update($target);
 
                 $dipulihkan++;
             }
 
-            $data['dibatalkan'] = true;
-            $log->update([
-                'description' => self::RIWAYAT_PREFIX.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ]);
+            if ($dipulihkan > 0) {
+                $data['dibatalkan'] = true;
+                $log->update([
+                    'description' => self::RIWAYAT_PREFIX.json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+                ]);
 
-            $this->catatRiwayat($actor, [
-                'batch' => $batch,
-                'aksi' => 'batalkan',
-                'jumlah' => $dipulihkan,
-                'snapshots' => [],
-            ]);
+                $this->catatRiwayat($actor, [
+                    'batch' => $batch,
+                    'aksi' => 'batalkan',
+                    'jumlah' => $dipulihkan,
+                    'snapshots' => [],
+                ]);
+            }
 
             return ['batch' => $batch, 'jumlah' => $dipulihkan];
         });
@@ -715,13 +1062,14 @@ class JadwalGuruService
         JadwalPelajaran $item,
         Collection $semua,
         JamBelajarKonfigurasi $konfigurasi,
+        ?User $guru = null,
     ): array {
         $waktu = $this->waktu($item, $konfigurasi);
         $perluDisesuaikan = $waktu['label'] !== $waktu['tersimpan'];
         $jurusan = trim((string) $item->jurusan);
         $singkatan = $this->singkatanJurusan($jurusan);
         $warna = self::WARNA_JURUSAN[$singkatan] ?? ['bg' => '#EEF2F8', 'text' => '#334155'];
-        $konflik = $this->konflikUntuk($item, $semua, $konfigurasi);
+        $konflik = $this->konflikUntuk($item, $semua, $konfigurasi, $guru);
 
         return [
             'id' => (int) $item->id,
@@ -754,8 +1102,9 @@ class JadwalGuruService
     }
 
     /**
-     * Grup bentrok antar jadwal milik guru yang sama pada sesi/jam yang sama.
-     * Data guru lain tidak pernah dimasukkan ke grup tampilan.
+     * Grup bentrok berdasarkan pasangan konflik nyata (guru, kelas, atau
+     * ruangan). Dua jadwal yang hanya berbagi waktu tetapi tidak berbagi
+     * sumber daya sengaja tidak digabungkan.
      *
      * @param  Collection<int, JadwalPelajaran>  $milik
      * @param  Collection<int, array<string, mixed>>  $items
@@ -768,62 +1117,61 @@ class JadwalGuruService
         Collection $semua,
         JamBelajarKonfigurasi $konfigurasi,
     ): Collection {
-        $pasangan = [];
+        $waktu = [];
 
-        foreach ($milik as $a) {
-            foreach ($milik as $b) {
-                if ((int) $a->id >= (int) $b->id || $a->hari !== $b->hari) {
-                    continue;
-                }
-
-                $waktuA = $this->waktu($a, $konfigurasi);
-                $waktuB = $this->waktu($b, $konfigurasi);
-
-                if (! $this->beririsan($waktuA, $waktuB['mulai'], $waktuB['selesai'])) {
-                    continue;
-                }
-
-                $pasangan[(int) $a->id][] = (int) $b->id;
-                $pasangan[(int) $b->id][] = (int) $a->id;
-            }
+        foreach ($semua as $jadwal) {
+            $waktu[(int) $jadwal->id] = $this->waktu($jadwal, $konfigurasi);
         }
 
-        $grup = [];
-        $dikunjungi = [];
+        $milikIds = array_map('intval', $milik->modelKeys());
+        $sementara = [];
 
-        foreach ($pasangan as $id => $tetangga) {
-            if (isset($dikunjungi[$id])) {
-                continue;
-            }
-
-            $anggota = [];
-            $tumpukan = [$id];
-
-            while ($tumpukan !== []) {
-                $saatIni = array_pop($tumpukan);
-
-                if (isset($dikunjungi[$saatIni])) {
-                    continue;
-                }
-
-                $dikunjungi[$saatIni] = true;
-                $anggota[] = $saatIni;
-
-                foreach ($pasangan[$saatIni] ?? [] as $next) {
-                    if (! isset($dikunjungi[$next])) {
-                        $tumpukan[] = $next;
-                    }
-                }
-            }
+        foreach ($this->pasanganKonflik($semua, $waktu) as $konflik) {
+            $anggota = array_values(array_intersect($konflik['ids'], $milikIds));
 
             if (count($anggota) < 2) {
                 continue;
             }
 
-            $grupItems = $items->filter(fn (array $item) => in_array($item['id'], $anggota, true))
+            $awal = $waktu[$anggota[0]];
+            $hari = (string) $semua->firstWhere('id', $anggota[0])?->hari;
+            $kunci = $konflik['jenis'].'|'.$konflik['resource'].'|'.$hari.'|'.$awal['mulai'].'|'.$awal['selesai'];
+
+            if (! isset($sementara[$kunci])) {
+                $sementara[$kunci] = [
+                    'ids' => [],
+                    'hari' => $hari,
+                    'mulai' => $awal['mulai'],
+                    'selesai' => $awal['selesai'],
+                    'jenis' => [],
+                    'konflik' => [],
+                ];
+            }
+
+            foreach ($anggota as $id) {
+                if (! in_array($id, $sementara[$kunci]['ids'], true)) {
+                    $sementara[$kunci]['ids'][] = $id;
+                }
+            }
+
+            $sementara[$kunci]['jenis'][$konflik['jenis']] = $this->labelJenisBentrok($konflik['jenis'])[1];
+            $sementara[$kunci]['konflik'][] = $konflik;
+        }
+
+        $grup = [];
+
+        foreach ($sementara as $kunci => $data) {
+            $ids = $data['ids'];
+            sort($ids);
+            $grupItems = $items->filter(fn (array $item) => in_array($item['id'], $ids, true))
                 ->sortBy(fn (array $item) => $item['mulai'].$item['kelas'])
                 ->values();
             $pertama = $grupItems->first();
+
+            if ($pertama === null) {
+                continue;
+            }
+
             $kandidat = [];
 
             foreach ($grupItems->slice(1) as $item) {
@@ -841,19 +1189,33 @@ class JadwalGuruService
             }
 
             $grup[] = [
-                'id' => $pertama['hari'].'-'.$pertama['mulai'],
-                'hari' => $pertama['hari'],
+                'id' => 'bentrok-'.substr(md5($kunci), 0, 12),
+                'hari' => $data['hari'],
                 'sesi_label' => $pertama['sesi_label'],
-                'jam' => $pertama['label'],
+                'jam' => $data['mulai'].'–'.$data['selesai'],
                 'jumlah' => $grupItems->count(),
                 'items' => $grupItems->all(),
                 'keep_id' => $pertama['id'],
                 'keep_label' => $pertama['kelas'].($pertama['jurusan'] !== '' ? ' '.$pertama['jurusan'] : ''),
                 'alternatif' => $kandidat,
+                'jenis' => array_keys($data['jenis']),
+                'jenis_label' => implode(' · ', array_values(array_unique($data['jenis']))),
+                'konflik' => array_map(function (array $konflik): array {
+                    [$kode, $judul] = $this->labelJenisBentrok((string) $konflik['jenis']);
+
+                    return [
+                        'jenis' => $kode,
+                        'judul' => $judul,
+                        'pesan' => $konflik['pesan'],
+                        'jadwal' => $konflik['detail'],
+                    ];
+                }, $data['konflik']),
             ];
         }
 
-        return collect($grup)->sortBy(fn (array $grup) => $grup['hari'].$grup['jam'])->values();
+        return collect($grup)
+            ->sortBy(fn (array $grup) => Str::lower($grup['hari']).$grup['jam'].$grup['id'])
+            ->values();
     }
 
     /**
@@ -934,8 +1296,19 @@ class JadwalGuruService
                 : $waktuSekarang[$id];
         }
 
-        $sekarang = $this->pasanganKonflik($semua, $waktuSekarang);
-        $rencanaKonflik = $this->pasanganKonflik($semua, $waktuRencana);
+        $hariSekarang = [];
+        $hariRencana = [];
+
+        foreach ($semua as $jadwal) {
+            $id = (int) $jadwal->id;
+            $hariSekarang[$id] = (string) $jadwal->hari;
+            $hariRencana[$id] = isset($rencana[$id]['hari'])
+                ? (string) $rencana[$id]['hari']
+                : $hariSekarang[$id];
+        }
+
+        $sekarang = $this->pasanganKonflik($semua, $waktuSekarang, $hariSekarang);
+        $rencanaKonflik = $this->pasanganKonflik($semua, $waktuRencana, $hariRencana);
         $diubah = array_fill_keys($diubah, true);
         $hasil = [];
 
@@ -953,9 +1326,10 @@ class JadwalGuruService
     /**
      * @param  Collection<int, JadwalPelajaran>  $semua
      * @param  array<int, array{mulai: string, selesai: string}>  $waktu
-     * @return array<string, array{ids: array<int, int>, pesan: string}>
+     * @param  array<int, string>  $hari
+     * @return array<string, array{ids: array<int, int>, pesan: string, jenis: string, resource: string, label: string, detail: array<int, array<string, mixed>>}>
      */
-    private function pasanganKonflik(Collection $semua, array $waktu): array
+    private function pasanganKonflik(Collection $semua, array $waktu, array $hari = []): array
     {
         $daftar = $semua->values();
         $hasil = [];
@@ -966,13 +1340,17 @@ class JadwalGuruService
                 $a = $daftar->get($i);
                 /** @var JadwalPelajaran $b */
                 $b = $daftar->get($j);
+                $idA = (int) $a->id;
+                $idB = (int) $b->id;
+                $hariA = $hari[$idA] ?? (string) $a->hari;
+                $hariB = $hari[$idB] ?? (string) $b->hari;
 
-                if ($a->hari !== $b->hari) {
+                if ($hariA !== $hariB) {
                     continue;
                 }
 
-                $wa = $waktu[(int) $a->id];
-                $wb = $waktu[(int) $b->id];
+                $wa = $waktu[$idA];
+                $wb = $waktu[$idB];
 
                 if (! ($wa['mulai'] < $wb['selesai'] && $wa['selesai'] > $wb['mulai'])) {
                     continue;
@@ -980,33 +1358,95 @@ class JadwalGuruService
 
                 $namaA = $a->mataPelajaran?->nama ?? 'Mata Pelajaran';
                 $namaB = $b->mataPelajaran?->nama ?? 'Mata Pelajaran';
+                $kelasA = trim(Kelas::normalize((string) $a->kelas)
+                    .(trim((string) $a->jurusan) !== '' ? ' '.trim((string) $a->jurusan) : ''));
+                $kelasB = trim(Kelas::normalize((string) $b->kelas)
+                    .(trim((string) $b->jurusan) !== '' ? ' '.trim((string) $b->jurusan) : ''));
                 $alasan = [];
 
                 if ((int) $a->guru_id === (int) $b->guru_id) {
-                    $alasan['guru'] = 'guru mengajar '.$namaA.' kelas '.$a->kelas.' dan '.$namaB.' kelas '.$b->kelas;
+                    $alasan['guru'] = [
+                        'pesan' => 'Guru '.$a->guru?->name.' mengajar '.$namaA.' kelas '.$kelasA.' dan '.$namaB.' kelas '.$kelasB.' bersamaan',
+                        'resource' => (string) (int) $a->guru_id,
+                        'label' => $a->guru?->name ?? 'Guru tidak tersedia',
+                    ];
                 }
 
                 $ruangA = trim((string) $a->ruang);
                 $ruangB = trim((string) $b->ruang);
                 if ($ruangA !== '' && $ruangB !== '' && strcasecmp($ruangA, $ruangB) === 0) {
-                    $alasan['ruang'] = 'ruang '.$ruangA.' dipakai dua kelas';
+                    $alasan['ruang'] = [
+                        'pesan' => 'Ruang '.$ruangA.' dipakai kelas '.$kelasA.' dan '.$kelasB.' bersamaan',
+                        'resource' => Str::lower($ruangA),
+                        'label' => $ruangA,
+                    ];
                 }
 
                 if (Kelas::normalize((string) $a->kelas) === Kelas::normalize((string) $b->kelas)
                     && $this->jurusanCocok(trim((string) $a->jurusan), trim((string) $b->jurusan))) {
-                    $alasan['kelas'] = 'kelas '.$a->kelas.' menerima '.$namaA.' dan '.$namaB;
+                    $alasan['kelas'] = [
+                        'pesan' => 'Kelas '.$kelasA.' menerima '.$namaA.' dan '.$namaB.' bersamaan',
+                        'resource' => $this->rombelKey($a),
+                        'label' => $kelasA,
+                    ];
                 }
 
-                foreach ($alasan as $jenis => $pesan) {
-                    $idA = (int) $a->id;
-                    $idB = (int) $b->id;
+                foreach ($alasan as $jenis => $info) {
                     $kunci = $jenis.':'.min($idA, $idB).':'.max($idA, $idB);
-                    $hasil[$kunci] = ['ids' => [$idA, $idB], 'pesan' => $pesan];
+                    $hasil[$kunci] = [
+                        'ids' => [$idA, $idB],
+                        'pesan' => $info['pesan'],
+                        'jenis' => $jenis,
+                        'resource' => $info['resource'],
+                        'label' => $info['label'],
+                        'detail' => [
+                            $this->detailJadwalKonflik($a, $wa),
+                            $this->detailJadwalKonflik($b, $wb),
+                        ],
+                    ];
                 }
             }
         }
 
         return $hasil;
+    }
+
+    /**
+     * @param  array{mulai: string, selesai: string}  $waktu
+     * @return array<string, mixed>
+     */
+    private function detailJadwalKonflik(JadwalPelajaran $jadwal, array $waktu): array
+    {
+        return [
+            'id' => (int) $jadwal->id,
+            'guru_id' => (int) $jadwal->guru_id,
+            'guru' => $jadwal->guru?->name ?? 'Guru tidak tersedia',
+            'mapel' => $jadwal->mataPelajaran?->nama ?? 'Mata Pelajaran',
+            'kelas' => trim(Kelas::normalize((string) $jadwal->kelas)
+                .(trim((string) $jadwal->jurusan) !== '' ? ' '.trim((string) $jadwal->jurusan) : '')),
+            'ruang' => trim((string) $jadwal->ruang) !== '' ? trim((string) $jadwal->ruang) : '-',
+            'hari' => (string) $jadwal->hari,
+            'sesi_label' => $jadwal->sesi ? 'Sesi '.$this->nomorSesi($jadwal->sesi) : 'Sesi —',
+            'jam' => $waktu['mulai'].'–'.$waktu['selesai'],
+        ];
+    }
+
+    private function rombelKey(JadwalPelajaran $jadwal): string
+    {
+        return trim((string) $jadwal->jurusan).'|'.Kelas::normalize((string) $jadwal->kelas);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function labelJenisBentrok(string $jenis): array
+    {
+        return match ($jenis) {
+            'guru' => ['guru', 'Bentrok Guru'],
+            'kelas' => ['kelas', 'Bentrok Kelas'],
+            'ruang' => ['ruang', 'Bentrok Ruangan'],
+            default => [$jenis, 'Bentrok'],
+        };
     }
 
     /**
@@ -1016,6 +1456,7 @@ class JadwalGuruService
         JadwalPelajaran $jadwal,
         Collection $semua,
         JamBelajarKonfigurasi $konfigurasi,
+        ?User $guru = null,
     ): array {
         $waktu = $this->waktu($jadwal, $konfigurasi);
         $kelas = Kelas::normalize((string) $jadwal->kelas);
@@ -1032,13 +1473,30 @@ class JadwalGuruService
                 continue;
             }
 
+            $milikGuru = $guru === null || (int) $calon->guru_id === (int) $guru->id;
+            $namaMapel = $milikGuru
+                ? ($calon->mataPelajaran?->nama ?? 'Mata Pelajaran')
+                : 'mata pelajaran lain';
+            $kelasCalon = $milikGuru
+                ? trim(Kelas::normalize((string) $calon->kelas)
+                    .(trim((string) $calon->jurusan) !== '' ? ' '.trim((string) $calon->jurusan) : ''))
+                : 'jadwal lain';
+
             if ((int) $calon->guru_id === (int) $jadwal->guru_id) {
-                $hasil[] = 'Bentrok guru dengan '.$calon->mataPelajaran?->nama.' kelas '.$calon->kelas;
-            } elseif ($ruang !== '' && strcasecmp(trim((string) $calon->ruang), $ruang) === 0) {
-                $hasil[] = 'Bentrok ruang '.$ruang;
-            } elseif (Kelas::normalize((string) $calon->kelas) === $kelas
+                $hasil[] = 'Bentrok guru dengan '.$namaMapel.' kelas '.$kelasCalon;
+            }
+
+            if ($ruang !== '' && strcasecmp(trim((string) $calon->ruang), $ruang) === 0) {
+                $hasil[] = $milikGuru
+                    ? 'Bentrok ruang '.$ruang.' dengan kelas '.$kelasCalon
+                    : 'Bentrok ruang '.$ruang.' dengan jadwal lain';
+            }
+
+            if (Kelas::normalize((string) $calon->kelas) === $kelas
                 && $this->jurusanCocok($jurusan, trim((string) $calon->jurusan))) {
-                $hasil[] = 'Bentrok kelas '.$kelas;
+                $hasil[] = $milikGuru
+                    ? 'Bentrok kelas '.$kelas.' dengan '.$namaMapel
+                    : 'Bentrok kelas '.$kelas.' dengan jadwal lain';
             }
         }
 

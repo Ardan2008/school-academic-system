@@ -103,13 +103,14 @@
                                     class="h-10 w-full cursor-not-allowed select-none rounded-lg border border-slate-300 bg-slate-50 pl-3 pr-9 text-sm text-slate-500 outline-none transition disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:opacity-100 focus:border-slate-300 focus:outline-none focus:ring-0">
                                 <x-lucide-lock class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             </div>
-                            <input type="hidden" id="nilai-mapel" name="mata_pelajaran_id" value="{{ $mapelAwal['id'] ?? '' }}">
+                            <input type="hidden" id="nilai-mapel" name="mata_pelajaran_id" value="{{ $mapelAwal['id'] ?? '' }}" data-change-ignore>
                         </label>
 
                         <label class="block">
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Jurusan</span>
                             <div class="relative">
                                 <select id="nilai-jurusan"
+                                    data-change-ignore
                                     class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
                                 </select>
                                 <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -120,6 +121,7 @@
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas</span>
                             <div class="relative">
                                 <select id="nilai-kelas"
+                                    data-change-ignore
                                     class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
                                 </select>
                                 <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -130,6 +132,7 @@
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Semester</span>
                             <div class="relative">
                                 <select id="nilai-semester"
+                                    data-change-ignore
                                     class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
                                 </select>
                                 <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -140,6 +143,7 @@
                             <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Tahun Ajaran</span>
                             <div class="relative">
                                 <select id="nilai-tahun"
+                                    data-change-ignore
                                     class="h-10 w-full appearance-none rounded-lg border border-slate-300 bg-white pl-3 pr-9 text-sm text-slate-800 outline-none transition focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
                                 </select>
                                 <x-lucide-chevron-down class="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
@@ -153,6 +157,7 @@
                             <label class="block">
                                 <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-slate-400">Isi KKM Massal</span>
                                 <input type="number" id="nilai-kkm-mass" min="0" max="100" step="0.01" inputmode="decimal"
+                                    data-change-ignore
                                     placeholder="Contoh: 75"
                                     class="h-10 w-32 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20">
                             </label>
@@ -171,7 +176,7 @@
                 </div>
 
                 {{-- Pesan galat di dalam kartu, supaya tetap terlihat saat popup ditutup. --}}
-                <div id="nilai-error" class="mx-4 mt-4 hidden items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 sm:mx-5">
+                <div id="nilai-error" data-change-error class="mx-4 mt-4 hidden items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 sm:mx-5">
                     <x-lucide-triangle-alert class="mt-0.5 h-4 w-4 shrink-0" />
                     <span data-error-text></span>
                 </div>
@@ -495,6 +500,7 @@
                     selectedTitle.textContent = 'Pilih kelas untuk mulai mengisi nilai';
                     scopeInfo.textContent = 'Nilai akan tersimpan sesuai periode yang dipilih.';
                     perbaruiStatistik([]);
+                    refreshPerubahan();
                     return;
                 }
 
@@ -508,6 +514,7 @@
                     selectedTitle.textContent = 'Tidak ada siswa pada kelas ini';
                     scopeInfo.textContent = 'Coba pilih kelas lain.';
                     perbaruiStatistik([]);
+                    refreshPerubahan();
                     return;
                 }
 
@@ -543,6 +550,7 @@
                 }).join('');
 
                 perbaruiStatistik(murid);
+                refreshPerubahan();
             };
 
             const barisDOM = () => Array.from(tbody.querySelectorAll('tr[data-user]'));
@@ -559,6 +567,17 @@
                     kkmEl,
                 };
             };
+
+            const sumberPerubahanNilai = () => barisDOM().map((tr) => {
+                const b = bacaBaris(tr);
+                const tersimpan = nilaiIndex.get(kunci(state.mapelId, b.userId, state.tahun, state.semester));
+                const nilaiAwal = tersimpan ? String(tersimpan.nilai) : '';
+                const kkmAwal = tersimpan ? String(tersimpan.kkm) : String(kkmBawaan);
+                if (b.nilai === nilaiAwal && (b.nilai === '' || b.kkm === kkmAwal)) return '';
+                return `${b.userId}:${b.nilai}:${b.kkm}`;
+            }).filter(Boolean).join('|');
+
+            const refreshPerubahan = () => window.saskansaChange?.refresh?.(form);
 
             const perbaruiStatusBaris = (tr) => {
                 const { nilai, kkm } = bacaBaris(tr);
@@ -657,6 +676,7 @@
                 });
 
                 perbaruiStatistik(siswaTerpilih());
+                refreshPerubahan();
             });
 
             form.addEventListener('submit', async (e) => {
@@ -779,6 +799,13 @@
             renderJurusan();
             renderKelas();
             render();
+
+            const pasangChange = () => window.saskansaChange?.bind(form, {
+                save: '#nilai-save, #nilai-save-bottom',
+                sources: () => ({ baris: sumberPerubahanNilai() }),
+            });
+            if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', pasangChange, { once: true });
+            else pasangChange();
         })();
     </script>
 @endpush

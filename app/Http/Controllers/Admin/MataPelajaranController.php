@@ -12,6 +12,7 @@ use App\Models\Tugas;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\XlsxExportService;
+use App\Support\PerbandinganData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -114,6 +115,14 @@ class MataPelajaranController extends Controller
                 'status' => 'error',
                 'message' => "Mata pelajaran {$mapel->nama} masih dipakai oleh guru atau data akademik, jadi namanya tidak bisa diganti. Kodenya masih bisa diubah.",
             ], 422);
+        }
+
+        if (PerbandinganData::identik($mapel, $data)) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Mata pelajaran {$mapel->nama} berhasil diperbarui.",
+                'data' => ['mapel' => $this->baris($mapel)],
+            ]);
         }
 
         $mapel->update($data);

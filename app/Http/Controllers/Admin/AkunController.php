@@ -13,6 +13,7 @@ use App\Services\XlsxExportService;
 use App\Support\Credentials;
 use App\Support\Kelas;
 use App\Support\LoginIdentifier;
+use App\Support\PerbandinganData;
 use App\Support\StrukturKelas;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Crypt;
@@ -156,6 +157,24 @@ class AkunController extends Controller
             }
 
             $data = array_merge($data, $this->fieldPerPeran($data['role']));
+        }
+
+        if ($data['role'] === $user->role && PerbandinganData::identik($user, $data)) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Data akun berhasil diperbarui.',
+                    'data' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'email' => $user->email,
+                        'kelas' => $user->kelas,
+                        'role' => $user->role,
+                    ],
+                ]);
+            }
+
+            return redirect()->route('dashboard.admin.manajemen-akun.index')->with('success', 'Data akun berhasil diperbarui.');
         }
 
         $user->update($data);

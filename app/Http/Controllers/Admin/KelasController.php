@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\XlsxExportService;
 use App\Support\Kelas;
+use App\Support\PerbandinganData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -123,6 +124,26 @@ class KelasController extends Controller
                 'message' => "Kelas {$kelas->kelas} {$kelas->jurusan} masih dipakai siswa, jadi nama kelasnya tidak bisa diubah. "
                     .'Pindahkan siswa ke kelas lain dulu, atau biarkan nama kelasnya tetap.',
             ], 422);
+        }
+
+        if (PerbandinganData::identik(
+            $kelas,
+            [
+                'jurusan' => $request->input('jurusan'),
+                'kelas' => $data['kelas'],
+                'wali_kelas_id' => $data['wali_kelas_id'],
+            ],
+            [
+                'jurusan' => fn ($nilai) => Jurusan::namaDariId((int) $nilai),
+            ]
+        )) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Kelas {$kelas->kelas} {$kelas->jurusan} berhasil diperbarui.",
+                'data' => [
+                    'kelas' => $this->baris($kelas, $this->jumlahSiswaPerKelas()),
+                ],
+            ]);
         }
 
         $kelas->update([

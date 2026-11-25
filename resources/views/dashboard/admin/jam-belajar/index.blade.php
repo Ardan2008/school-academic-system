@@ -394,11 +394,13 @@
                     waktu.push(jamField.mulai.value);
                     waktu.sort();
                     jamField.urutan.value = String(waktu.indexOf(jamField.mulai.value) + 1);
+                    window.saskansaChange?.refresh?.(jamForm);
                 };
 
                 const jamRenderSesi = () => {
                     if (!jamData.sesi.length) {
                         jamBody.innerHTML = '<tr><td colspan="5" class="px-3 py-8 text-center text-xs text-slate-400">Belum ada sesi jam belajar.</td></tr>';
+                        window.saskansaChange?.refresh?.(jamForm);
 
                         return;
                     }
@@ -419,6 +421,7 @@
                             </td>
                         </tr>
                     `).join('');
+                    window.saskansaChange?.refresh?.(jamForm);
                 };
 
                 const muatUlangSesi = async () => {
@@ -491,6 +494,17 @@
                             jamInfo.textContent += ' Sesi ini dipakai ' + sesi.jumlah_jadwal + ' jadwal; perubahan akan diterapkan ke jadwal terkait.';
                         }
                     }
+
+                    const jamUbah = mode === 'operasional' || Boolean(sesi);
+                    const perubahanJam = window.saskansaChange?.bind?.(jamForm, {
+                        save: '[data-jam-save]',
+                        sources: () => ({
+                            hari_aktif: jamField.hariAktif.filter((opsi) => opsi.checked).map((opsi) => opsi.value),
+                        }),
+                        always: !jamUbah,
+                    });
+                    perubahanJam?.busy?.(false);
+                    if (jamUbah) perubahanJam?.snapshot?.();
 
                     jamModal.removeAttribute('inert');
                     jamModal.setAttribute('aria-hidden', 'false');

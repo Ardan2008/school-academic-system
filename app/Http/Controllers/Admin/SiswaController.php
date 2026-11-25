@@ -12,11 +12,13 @@ use App\Services\XlsxExportService;
 use App\Support\Credentials;
 use App\Support\Kelas;
 use App\Support\PasswordPolicy;
+use App\Support\PerbandinganData;
 use App\Support\StrukturKelas;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
 class SiswaController extends Controller
@@ -124,6 +126,36 @@ class SiswaController extends Controller
         $this->ensureSiswa($user);
 
         $data = $this->validated($request, $user);
+        $passwordBerubah = $data['password'] !== null && $data['password'] !== ''
+            && ! Hash::check($data['password'], (string) $user->password);
+
+        $identik = PerbandinganData::identik(
+            $user,
+            [
+                'nama' => $data['nama'],
+                'email' => $data['email'],
+                'kelas' => $data['kelas'],
+                'jurusan' => $request->input('jurusan'),
+                'nis' => $data['nis'],
+                'status' => $data['status'],
+            ],
+            [
+                'nama' => 'name',
+                'jurusan' => fn ($nilai) => Jurusan::namaDariId((int) $nilai),
+            ],
+            ['password']
+        );
+
+        if ($identik && ! $passwordBerubah) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Data siswa {$data['nama']} berhasil diperbarui.",
+                'data' => [
+                    'siswa' => $this->row($user),
+                    'password' => null,
+                ],
+            ]);
+        }
 
         $values = [
             'name' => $data['nama'],
@@ -139,7 +171,7 @@ class SiswaController extends Controller
         // pengganti yang unik.
         $password = null;
 
-        if ($data['password'] !== null && $data['password'] !== '') {
+        if ($passwordBerubah) {
             $password = Credentials::ensureUniquePassword($data['password']);
             $values['password'] = $password;
             $values['initial_password'] = Crypt::encryptString($password);

@@ -14,12 +14,14 @@ use App\Services\XlsxExportService;
 use App\Support\Credentials;
 use App\Support\Kelas;
 use App\Support\PasswordPolicy;
+use App\Support\PerbandinganData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -145,8 +147,54 @@ class GuruController extends Controller
 
         $data = $this->validated($request, $user);
         $password = null;
+        $passwordBerubah = $data['password'] !== null && $data['password'] !== ''
+            && ! Hash::check($data['password'], (string) $user->password);
 
-        DB::transaction(function () use ($data, $user, &$password): void {
+        $penugasanSekarang = $this->penugasanSekarang($user);
+
+        $identik = PerbandinganData::identik(
+            $user,
+            [
+                'nama' => $data['nama'],
+                'email' => $data['email'],
+                'nis' => $data['nis'],
+                'status' => $data['status'],
+                'mapel' => $data['mapel'],
+                'mata_pelajaran_tersimpan' => $data['mapel'],
+                'mata_pelajaran_id' => $data['mata_pelajaran_id'],
+                'kelas_ids' => $data['kelas_ids'],
+                'penugasan_ada' => $data['penugasan_ada'],
+            ],
+            [
+                'nama' => 'name',
+                'nis' => 'nip',
+                'mata_pelajaran_tersimpan' => 'mata_pelajaran',
+                'mapel' => function ($nilai, User $model) {
+                    if ($this->penugasan->sudahDiatur($model)) {
+                        return $this->penugasan->mapelDiampu($model)->pluck('nama')->implode(', ');
+                    }
+
+                    return trim((string) $model->mata_pelajaran);
+                },
+                'mata_pelajaran_id' => fn () => $penugasanSekarang['mata_pelajaran_id'],
+                'kelas_ids' => fn () => $penugasanSekarang['kelas_ids'],
+                'penugasan_ada' => 'penugasan_diatur',
+            ],
+            ['password']
+        );
+
+        if ($identik && ! $passwordBerubah) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Data guru {$data['nama']} berhasil diperbarui.",
+                'data' => [
+                    'guru' => $this->row($user),
+                    'password' => null,
+                ],
+            ]);
+        }
+
+        DB::transaction(function () use ($data, $user, &$password, $passwordBerubah): void {
             $values = [
                 'name' => $data['nama'],
                 'email' => $data['email'],
@@ -156,7 +204,7 @@ class GuruController extends Controller
                 'penugasan_diatur' => $data['penugasan_ada'],
             ];
 
-            if ($data['password'] !== null && $data['password'] !== '') {
+            if ($passwordBerubah) {
                 $password = Credentials::ensureUniquePassword($data['password']);
                 $values['password'] = $password;
                 $values['initial_password'] = Crypt::encryptString($password);
@@ -257,6 +305,30 @@ class GuruController extends Controller
         }
 
         $mapelNama = $mapelId ? trim((string) MataPelajaran::query()->whereKey($mapelId)->value('nama')) : '';
+        $penugasanSekarang = $this->penugasanSekarang($user);
+
+        if (PerbandinganData::identik(
+            $user,
+            [
+                'mata_pelajaran_id' => $mapelId,
+                'kelas_ids' => $kelasIds,
+                'penugasan_diatur' => (bool) $mapelId,
+                'mata_pelajaran' => $mapelId ? $mapelNama : null,
+            ],
+            [
+                'mata_pelajaran_id' => fn () => $penugasanSekarang['mata_pelajaran_id'],
+                'kelas_ids' => fn () => $penugasanSekarang['kelas_ids'],
+            ]
+        )) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Penugasan mengajar {$user->name} berhasil disimpan.",
+                'data' => [
+                    'guru' => $this->row($user),
+                    'penugasan' => $this->penugasan->ringkasan($user)->values(),
+                ],
+            ]);
+        }
 
         DB::transaction(function () use ($user, $mapelId, $kelasIds, $mapelNama): void {
             $this->syncPenugasan($user, $mapelId, $kelasIds);
@@ -282,6 +354,36 @@ class GuruController extends Controller
                 'penugasan' => $this->penugasan->ringkasan($user)->values(),
             ],
         ]);
+    }
+
+    protected function penugasanSekarang(User $user): array
+    {
+        $baris = PenugasanMengajar::query()
+            ->where('guru_id', $user->id)
+            ->get(['mata_pelajaran_id', 'kelas_id']);
+
+        $mapelIds = $baris
+            ->pluck('mata_pelajaran_id')
+            ->filter(fn ($id) => $id !== null)
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        if ($mapelIds->count() !== 1) {
+            return ['mata_pelajaran_id' => null, 'kelas_ids' => []];
+        }
+
+        return [
+            'mata_pelajaran_id' => (int) $mapelIds->first(),
+            'kelas_ids' => $baris
+                ->pluck('kelas_id')
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn (int $id) => $id > 0)
+                ->unique()
+                ->sort()
+                ->values()
+                ->all(),
+        ];
     }
 
     /**
@@ -543,7 +645,9 @@ class GuruController extends Controller
         if (! $mapelId && $legacyMapel !== '') {
             $legacy = MataPelajaran::query()->whereRaw('LOWER(nama) = LOWER(?)', [$legacyMapel])->first()
                 ?? MataPelajaran::query()->where('nama', 'like', '%'.$legacyMapel.'%')->first();
-            if ($legacy) $mapelId = (int) $legacy->id;
+            if ($legacy) {
+                $mapelId = (int) $legacy->id;
+            }
         }
 
         if ($mapelId && empty($kelasIds)) {

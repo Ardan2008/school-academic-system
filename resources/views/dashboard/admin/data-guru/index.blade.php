@@ -412,14 +412,14 @@
         data-open="false"
         aria-hidden="true"
         inert
-        class="gm fixed inset-0 z-60 flex items-end justify-center overflow-y-auto overscroll-contain bg-[#0F3D73]/60 p-0 sm:items-center sm:p-4 lg:left-64"
+        class="gm fixed inset-0 z-60 flex items-end justify-center overflow-hidden overscroll-contain bg-[#0F3D73]/60 p-0 sm:items-center sm:p-4 lg:left-64"
         role="dialog"
         aria-modal="true"
         aria-labelledby="penugasan-overview-title"
     >
         <div data-penugasan-overview-backdrop class="gm-backdrop absolute inset-0"></div>
 
-        <div class="gm-panel relative z-10 flex max-h-[92dvh] w-full max-w-4xl flex-col rounded-t-3xl bg-[#FAFAFA] shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl">
+        <div class="gm-panel relative z-10 flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-t-3xl bg-[#FAFAFA] shadow-2xl sm:max-h-[88dvh] sm:rounded-2xl">
             <header class="flex shrink-0 items-start gap-3 px-6 pb-2 pt-6 sm:px-8 sm:pt-7">
                 <div class="min-w-0 flex-1">
                     <h3 id="penugasan-overview-title" class="text-2xl font-bold leading-tight text-primary-70">Penugasan Mengajar</h3>
@@ -431,11 +431,26 @@
                 </button>
             </header>
 
-            <div class="min-h-0 flex-1 overflow-y-auto px-6 py-4 sm:px-8">
+            <div class="shrink-0 border-b border-slate-200 bg-[#FAFAFA] px-6 pb-3 pt-1 sm:px-8">
+                <div class="relative">
+                    <x-lucide-search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input type="search" id="penugasan-overview-search" data-penugasan-overview-search
+                        aria-label="Cari guru pada penugasan mengajar"
+                        placeholder="Cari nama, NIP, email, mapel, atau kelas" autocomplete="off"
+                        class="h-10 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-10 text-base text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-primary-60 focus:ring-2 focus:ring-primary-60/20 sm:h-9 sm:text-sm [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none">
+                    <button type="button" data-penugasan-overview-search-clear aria-label="Hapus kata pencarian"
+                        class="absolute right-1.5 top-1/2 hidden -translate-y-1/2 items-center justify-center rounded-lg p-1.5 text-slate-400 transition-all duration-200 ease-out hover:bg-slate-400/15 hover:text-slate-600 focus-visible:outline-2 focus-visible:outline-blue-500 active:scale-90">
+                        <x-lucide-x class="h-4 w-4" />
+                    </button>
+                </div>
+            </div>
+
+            <div data-penugasan-overview-scroll
+                class="penugasan-overview-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-5 pt-4 sm:px-8">
                 <div data-penugasan-overview-list class="space-y-3"></div>
             </div>
 
-            <footer class="mx-6 flex shrink-0 justify-end border-t border-slate-300 py-4 sm:mx-8">
+            <footer class="mx-6 flex shrink-0 justify-end border-t border-slate-300 bg-[#FAFAFA] py-4 sm:mx-8">
                 <button type="button" data-penugasan-overview-tutup
                     class="gm-close inline-flex h-11 items-center justify-center rounded-md border border-primary-60 bg-white px-5 text-sm font-medium text-primary-70 transition hover:bg-blue-50 active:scale-[.98]">
                     Tutup
@@ -676,9 +691,46 @@
             100% { transform: translateX(100%); }
         }
 
+        #penugasan-tooltip {
+            position: fixed;
+            z-index: 90;
+            max-width: 14rem;
+            border-radius: .375rem;
+            background: #1e293b;
+            padding: .35rem .6rem;
+            color: #fff;
+            font-size: .75rem;
+            font-weight: 500;
+            line-height: 1.1;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .18);
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(4px);
+            transition: opacity .18s ease-out, transform .18s ease-out;
+            white-space: nowrap;
+        }
+
+        #penugasan-tooltip[data-visible="true"] {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .penugasan-kelas-popover {
+            opacity: 0;
+            transform: translateY(4px) scale(.98);
+            transition: opacity .18s ease-out, transform .18s ease-out;
+        }
+
+        .penugasan-kelas-popover[data-visible="true"] {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+
         @media (prefers-reduced-motion: reduce) {
             .ekspor[data-state="muat"] .ekspor-kilau { animation: none; opacity: .5; }
             .ekspor[data-state="sukses"] [data-ekspor-ikon="sukses"] { animation: none; }
+            #penugasan-tooltip,
+            .penugasan-kelas-popover { transition: none; }
         }
 
         /* Ikon filter berputar saat panel terbuka */
@@ -730,16 +782,22 @@
             }
         }
 
-        .penugasan-kelas-scroll {
+        .penugasan-kelas-scroll,
+        .penugasan-overview-scroll,
+        .kelas-popover-scroll {
             scrollbar-width: thin;
             scrollbar-color: #CBD5E1 transparent;
         }
 
-        .penugasan-kelas-scroll::-webkit-scrollbar {
+        .penugasan-kelas-scroll::-webkit-scrollbar,
+        .penugasan-overview-scroll::-webkit-scrollbar,
+        .kelas-popover-scroll::-webkit-scrollbar {
             width: 6px;
         }
 
-        .penugasan-kelas-scroll::-webkit-scrollbar-thumb {
+        .penugasan-kelas-scroll::-webkit-scrollbar-thumb,
+        .penugasan-overview-scroll::-webkit-scrollbar-thumb,
+        .kelas-popover-scroll::-webkit-scrollbar-thumb {
             background-color: #CBD5E1;
             border-radius: 9999px;
         }
@@ -1090,13 +1148,19 @@
             const pill = (cls, text) =>
                 `<span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-medium ${cls}">${esc(text)}</span>`;
 
+            const ICON_LAYERS = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 shrink-0 text-primary-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 12.17-9.17 4.16a2 2 0 0 1-1.66 0L2 12.17"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/></svg>';
+            const ICON_EYE   = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>';
             const ICON_EDIT = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg>';
             const ICON_DEL  = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>';
             const ICON_PENUGASAN = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 12h6"/><path d="M9 16h6"/></svg>';
             const ICON_LOCK = '<svg xmlns="http://www.w3.org/2000/svg" class="lucide lucide-lock pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>';
+            const ICON_SEARCH_X = '<svg xmlns="http://www.w3.org/2000/svg" class="mx-auto h-8 w-8 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="m9 9 6 6"/><path d="m15 9-6 6"/></svg>';
+            const ICON_ROTATE = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
             const actions = (g) => `
                 <div class="inline-flex items-center gap-2">
+                    <button type="button" data-action="detail-kelas" data-id="${g.id}" aria-label="Lihat Detail Guru ${esc(g.nama)}" title="Lihat Detail Guru"
+                        class="guru-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_EYE}</button>
                     <button type="button" data-action="penugasan" data-id="${g.id}" aria-label="Penugasan Mengajar ${esc(g.nama)}" title="Penugasan Mengajar"
                         class="guru-act flex h-8 w-8 items-center justify-center rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_PENUGASAN}</button>
                     <button type="button" data-action="edit" data-id="${g.id}" aria-label="Ubah ${esc(g.nama)}" title="Ubah ${esc(g.nama)}"
@@ -1123,14 +1187,70 @@
                     <div class="flex flex-col items-start gap-1">
                         <div class="flex flex-wrap gap-1">
                             ${badgeKelas}
-                            ${sisa > 0 ? `<span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">+${sisa} lainnya</span>` : ''}
+                            ${sisa > 0 ? `<button type="button" data-kelas-popover="${g.id}" aria-haspopup="dialog" aria-expanded="false" aria-label="Lihat semua ${daftar.length} kelas yang diajar ${esc(g.nama)}" class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-primary-70 focus-visible:outline-2 focus-visible:outline-blue-500 active:scale-95">+${sisa} lainnya</button>` : ''}
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-[11px] text-slate-400">${daftar.length} kelas</span>
-                            <button type="button" data-action="detail-kelas" data-id="${g.id}" title="Lihat Detail Kelas yang Diampu"
-                                class="text-[11px] font-semibold text-primary-60 transition hover:text-primary-70 hover:underline">Lihat Detail</button>
-                        </div>
+                        <span class="inline-flex items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-70">${ICON_LAYERS}<span class="font-semibold">${daftar.length}</span> kelas</span>
                     </div>`;
+            };
+
+            const kelasScrollClass = (jumlah) => jumlah > 10
+                ? 'kelas-popover-scroll max-h-64 overflow-y-auto overscroll-contain'
+                : '';
+
+            let popoverRingkas = null;
+
+            const tutupPopoverRingkas = () => {
+                if (!popoverRingkas) return false;
+                const { button, element } = popoverRingkas;
+                popoverRingkas = null;
+                element.dataset.visible = 'false';
+                element.style.pointerEvents = 'none';
+                button.setAttribute('aria-expanded', 'false');
+                setTimeout(() => element.remove(), 180);
+                return true;
+            };
+
+            const bukaPopoverRingkas = (button) => {
+                if (button?.getAttribute('aria-expanded') === 'true') {
+                    tutupPopoverRingkas();
+                    return;
+                }
+                tutupPopoverRingkas();
+                const g = rows.find((r) => String(r.id) === String(button?.dataset.kelasPopover));
+                if (!g) return;
+                const daftar = Array.isArray(g.kelas_diampu) ? g.kelas_diampu : [];
+                const pop = document.createElement('div');
+                pop.className = 'penugasan-kelas-popover fixed z-[90] w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10';
+                pop.setAttribute('role', 'dialog');
+                pop.setAttribute('aria-label', `Semua kelas yang diajar ${g.nama || ''}`);
+                pop.innerHTML = `
+                    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2">
+                        <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">SEMUA KELAS YANG DIAJAR</p>
+                        <span class="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-50 px-1.5 text-[11px] font-semibold text-primary-60">${daftar.length}</span>
+                    </div>
+                    <div class="space-y-1.5 p-3 ${kelasScrollClass(daftar.length)}">
+                        ${daftar.map((kelas) => {
+                            const nama = kelas.nama || kelas.kelas || '-';
+                            const jurusan = kelas.jurusan || '';
+                            const label = jurusan ? `${nama} · ${jurusan}` : nama;
+
+                            return `<div class="break-words rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-primary-70">${esc(label)}</div>`;
+                        }).join('')}
+                    </div>`;
+                document.body.appendChild(pop);
+                const rect = button.getBoundingClientRect();
+                const lebar = pop.offsetWidth;
+                const tinggi = pop.offsetHeight;
+                let kiri = rect.left;
+                let atas = rect.bottom + 8;
+                if (kiri + lebar > window.innerWidth - 8) kiri = window.innerWidth - lebar - 8;
+                if (kiri < 8) kiri = 8;
+                if (atas + tinggi > window.innerHeight - 8) atas = Math.max(8, rect.top - tinggi - 8);
+                pop.style.left = `${kiri}px`;
+                pop.style.top = `${atas}px`;
+                button.setAttribute('aria-expanded', 'true');
+                popoverRingkas = { button, element: pop };
+                requestAnimationFrame(() => { if (pop.isConnected) pop.dataset.visible = 'true'; });
             };
 
             // ===== Template baris =====
@@ -1214,6 +1334,8 @@
             // ===== Render =====
             // animate = false dipakai saat mengetik di pencarian supaya baris tidak berkedip
             function render(animate = true) {
+                tutupPopoverRingkas();
+                tutupTooltipPenugasan();
                 const list     = filtered();
                 const total    = list.length;
                 const lastPage = Math.max(1, Math.ceil(total / perPage));
@@ -1480,7 +1602,7 @@
             const tingkatKelas = (k) => String(k?.kelas ?? '').split('-')[0].trim();
             const labelKelas = (k) => k?.label || ((k?.jurusan || '-') + ' / ' + (k?.kelas || '-'));
 
-            const createKelasPicker = ({ wrap, filterWrap, selectedWrap, countEl, emptyEl, options }) => {
+            const createKelasPicker = ({ wrap, filterWrap, selectedWrap, countEl, emptyEl, options, refreshForm }) => {
                 let selected = new Set();
                 let filter = 'semua';
                 const render = () => {
@@ -1513,10 +1635,12 @@
                     const id = String(card.dataset.kelasCard);
                     if (selected.has(id)) selected.delete(id); else selected.add(id);
                     render();
+                    window.saskansaChange?.refresh?.(refreshForm);
                 });
                 selectedWrap?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-remove-kelas]'); if (!btn) return;
                     selected.delete(String(btn.dataset.removeKelas)); render();
+                    window.saskansaChange?.refresh?.(refreshForm);
                 });
                 filterWrap?.addEventListener('click', (e) => {
                     const btn = e.target.closest('[data-filter]'); if (!btn) return;
@@ -1536,6 +1660,7 @@
                 countEl: form.querySelector('[data-guru-kelas-count]'),
                 emptyEl: form.querySelector('[data-guru-penugasan-kelas-empty]'),
                 options: kelasOptions,
+                refreshForm: form,
             });
 
             const fillPenugasanMapel = (selectedId = '') => {
@@ -1591,6 +1716,17 @@
                     f.mapel.value = '';
                 }
                 setPenugasanFields(g);
+
+                const perubahanGuru = window.saskansaChange?.bind?.(form, {
+                    save: '[data-modal-save]',
+                    sources: () => ({
+                        kelas_ids: selectedKelasIds(),
+                        mata_pelajaran_id: penugasanMapelSelect.value,
+                    }),
+                    always: !g,
+                });
+                perubahanGuru?.busy?.(false);
+                if (g) perubahanGuru?.snapshot?.();
 
                 // Urutan muncul isi formulir (dipakai animasi bertahap di CSS)
                 [...form.children].forEach((el, i) => el.style.setProperty('--k', i));
@@ -1892,6 +2028,12 @@
             });
 
             root.addEventListener('click', async (e) => {
+                const kelasBtn = e.target.closest?.('[data-kelas-popover]');
+                if (kelasBtn) {
+                    bukaPopoverRingkas(kelasBtn);
+                    return;
+                }
+
                 const btn = e.target.closest('[data-action]');
                 if (!btn) return;
 
@@ -1905,6 +2047,7 @@
                 }
 
                 if (btn.dataset.action === 'detail-kelas') {
+                    tutupTooltipPenugasan();
                     bukaDetailKelas(g);
                     return;
                 }
@@ -1969,10 +2112,14 @@
             const penugasanGuruBtn = document.getElementById('guru-penugasan');
             const penugasanOverview = document.getElementById('penugasan-overview-modal');
             const penugasanOverviewList = penugasanOverview?.querySelector('[data-penugasan-overview-list]');
+            const penugasanOverviewScroll = penugasanOverview?.querySelector('[data-penugasan-overview-scroll]');
+            const penugasanOverviewSearch = penugasanOverview?.querySelector('[data-penugasan-overview-search]');
+            const penugasanOverviewSearchClear = penugasanOverview?.querySelector('[data-penugasan-overview-search-clear]');
             const tambahPenugasanBtn = penugasanForm.querySelector('[data-penugasan-tambah]');
             if (tambahPenugasanBtn) tambahPenugasanBtn.remove();
             let penugasanGuru = null;
             let penugasanReturnFocus = null;
+            let penugasanOverviewQuery = '';
 
             const penugasanPesan = (text) => { penugasanError.textContent = text || ''; penugasanError.classList.toggle('hidden', !text); };
             const pMapelOptions = Array.isArray(data.mapel_options) ? data.mapel_options : [];
@@ -2034,6 +2181,7 @@
                     countEl: penugasanList.querySelector('[data-p-kelas-count]'),
                     emptyEl: penugasanList.querySelector('[data-p-kelas-empty]'),
                     options: pKelasOptions,
+                    refreshForm: penugasanForm,
                 });
                 penugasanKelasPicker.setSelected(selectedKelasIds || []);
             };
@@ -2043,11 +2191,65 @@
                 return { mata_pelajaran_id: penugasanMapelId ? Number(penugasanMapelId) : null, kelas_ids: kelasIds };
             };
 
+            const siapkanPenugasanChange = () => {
+                if (!window.saskansaChange) {
+                    penugasanSimpan.disabled = false;
+                    return;
+                }
+                const perubahanPenugasan = window.saskansaChange.bind(penugasanForm, {
+                    save: '[data-penugasan-simpan]',
+                    sources: () => ({
+                        kelas_ids: penugasanKelasPicker ? penugasanKelasPicker.getSelected() : [],
+                        mata_pelajaran_id: penugasanMapelId ?? '',
+                    }),
+                });
+                perubahanPenugasan?.busy?.(false);
+                perubahanPenugasan?.snapshot?.();
+            };
+
             const tutupPenugasan = () => {
                 penugasanModal.dataset.open = 'false';
                 penugasanModal.setAttribute('aria-hidden', 'true');
                 penugasanModal.setAttribute('inert', '');
                 penugasanReturnFocus?.focus();
+            };
+
+            const teksPenugasan = (nilai) => String(nilai ?? '').toLocaleLowerCase('id-ID').replace(/\s+/g, ' ').trim();
+
+            const cocokPenugasan = (g, query) => {
+                const kata = teksPenugasan(query).split(' ').filter(Boolean);
+                if (kata.length === 0) return true;
+                const kelas = Array.isArray(g.kelas_diampu) ? g.kelas_diampu : [];
+                const mapel = Array.isArray(g.mapel_list) && g.mapel_list.length ? g.mapel_list : [g.mapel || ''];
+                const sumber = [
+                    g.nama,
+                    g.nip,
+                    g.email,
+                    ...mapel,
+                    ...kelas.flatMap((k) => [k.nama, k.kelas, k.jurusan]),
+                ];
+                const gabungan = teksPenugasan(sumber.join(' '));
+                return kata.every((potongan) => gabungan.includes(potongan));
+            };
+
+            const sinkronHapusPencarian = () => {
+                if (!penugasanOverviewSearchClear) return;
+                const ada = Boolean(penugasanOverviewSearch?.value);
+                penugasanOverviewSearchClear.classList.toggle('hidden', !ada);
+            };
+
+            const resetPenugasanOverviewScroll = () => {
+                if (penugasanOverviewScroll) penugasanOverviewScroll.scrollTop = 0;
+            };
+
+            const hapusPencarianOverview = () => {
+                if (!penugasanOverviewSearch) return;
+                penugasanOverviewSearch.value = '';
+                penugasanOverviewQuery = '';
+                sinkronHapusPencarian();
+                renderPenugasanOverview();
+                resetPenugasanOverviewScroll();
+                penugasanOverviewSearch.focus();
             };
 
             const renderPenugasanOverview = () => {
@@ -2056,40 +2258,158 @@
                     penugasanOverviewList.innerHTML = '<div class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-8 text-center text-sm text-slate-500">Belum ada data guru.</div>';
                     return;
                 }
-                penugasanOverviewList.innerHTML = rows.map((g) => {
+                const tersaring = rows.filter((g) => cocokPenugasan(g, penugasanOverviewQuery));
+                if (tersaring.length === 0) {
+                    penugasanOverviewList.innerHTML = `
+                        <div class="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-10 text-center">
+                            ${ICON_SEARCH_X}
+                            <p class="mt-3 text-sm font-semibold text-slate-700">Guru tidak ditemukan</p>
+                            <p class="mt-1 text-xs text-slate-500">Tidak ada guru yang cocok dengan kata kunci tersebut.</p>
+                            <button type="button" data-penugasan-overview-reset
+                                class="mt-4 inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-600 transition hover:bg-slate-50 active:scale-[.98]">
+                                ${ICON_ROTATE}
+                                Hapus pencarian
+                            </button>
+                        </div>`;
+                    return;
+                }
+                penugasanOverviewList.innerHTML = tersaring.map((g) => {
                     const mapel = (Array.isArray(g.mapel_list) && g.mapel_list.length) ? g.mapel_list[0] : (g.mapel || '-');
                     const kelas = Array.isArray(g.kelas_diampu) ? g.kelas_diampu : [];
                     const kelasBadges = kelas.length
                         ? kelas.slice(0, 2).map((k) => `<span class="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-70">${esc(k.nama || k.kelas || '-')}</span>`).join('')
-                          + (kelas.length > 2 ? `<span class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600">+${kelas.length - 2} lainnya</span>` : '')
+                          + (kelas.length > 2 ? `<button type="button" data-overview-kelas-popover="${g.id}" aria-haspopup="dialog" aria-expanded="false" aria-label="Lihat ${kelas.length} kelas yang diajar ${esc(g.nama || '')}" class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 transition hover:border-blue-300 hover:bg-blue-50 hover:text-primary-70 focus-visible:outline-2 focus-visible:outline-blue-500 active:scale-95">+${kelas.length - 2} lainnya</button>` : '')
                         : '<span class="text-xs text-slate-400">-</span>';
                     return `
                         <div class="rounded-xl border border-slate-200 bg-white p-4">
                             <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                 <div class="min-w-0 flex-1">
                                     <p class="text-sm font-semibold text-slate-800">${esc(g.nama || '-')}</p>
-                                    <p class="mt-0.5 text-xs text-slate-500">${esc(g.nip || '-')} ? ${esc(g.email || '-')}</p>
+                                    <p class="mt-0.5 text-xs text-slate-500">${esc(g.nip || '-')} · ${esc(g.email || '-')}</p>
                                     <div class="mt-3 grid gap-2 sm:grid-cols-2">
                                         <div><p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Mata Pelajaran</p><p class="mt-0.5 text-sm text-slate-700">${esc(mapel || '-')}</p></div>
                                         <div><p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Kelas yang Diajar</p><div class="mt-1 flex flex-wrap gap-1.5">${kelasBadges}</div></div>
                                     </div>
                                 </div>
-                                <button type="button" data-overview-kelola="${g.id}" title="Kelola penugasan" aria-label="Kelola penugasan ${esc(g.nama || '')}" class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90">${ICON_PENUGASAN}</button>
+                                <button type="button" data-overview-kelola="${g.id}" data-overview-tooltip="Kelola Penugasan Mengajar" aria-label="Kelola penugasan ${esc(g.nama || '')}" class="inline-flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-lg border border-blue-300 bg-white text-primary-60 transition hover:bg-blue-50 active:scale-90 focus-visible:outline-2 focus-visible:outline-blue-500">${ICON_PENUGASAN}</button>
                             </div>
                         </div>`;
                 }).join('');
             };
 
+            let popoverKelas = null;
+            let tooltipPenugasan = null;
+            let tooltipPenugasanTarget = null;
+            let tooltipTimer = null;
+
+            const tutupPopoverKelas = () => {
+                if (!popoverKelas) return false;
+                const { button, element } = popoverKelas;
+                popoverKelas = null;
+                element.remove();
+                button.setAttribute('aria-expanded', 'false');
+                return true;
+            };
+
+            const bukaPopoverKelas = (button) => {
+                if (button?.getAttribute('aria-expanded') === 'true') {
+                    tutupPopoverKelas();
+                    return;
+                }
+                tutupPopoverKelas();
+                tutupTooltipPenugasan();
+                const g = rows.find((r) => String(r.id) === String(button?.dataset.overviewKelasPopover));
+                if (!g) return;
+                const daftar = Array.isArray(g.kelas_diampu) ? g.kelas_diampu : [];
+                const pop = document.createElement('div');
+                pop.className = 'penugasan-kelas-popover fixed z-[90] w-64 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl shadow-slate-900/10';
+                pop.setAttribute('role', 'dialog');
+                pop.setAttribute('aria-label', `Semua kelas yang diajar ${g.nama || ''}`);
+                pop.innerHTML = `
+                    <div class="flex shrink-0 items-center justify-between gap-2 border-b border-slate-100 bg-white px-3 py-2">
+                        <p class="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SEMUA KELAS YANG DIAJAR</p>
+                        <span class="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-60">${daftar.length}</span>
+                    </div>
+                    <div class="space-y-1.5 px-3 py-2 ${kelasScrollClass(daftar.length)}">
+                        ${daftar.map((k) => {
+                            const nama = k.nama || k.kelas || '-';
+                            const jurusan = k.jurusan || '';
+                            const label = jurusan ? `${nama} · ${jurusan}` : nama;
+                            return `<span class="block break-words rounded-full border border-blue-100 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-primary-70" title="${esc(jurusan)}">${esc(label)}</span>`;
+                        }).join('')}
+                    </div>`;
+                document.body.appendChild(pop);
+                const rect = button.getBoundingClientRect();
+                const lebar = pop.offsetWidth;
+                const tinggi = pop.offsetHeight;
+                let kiri = rect.left;
+                let atas = rect.bottom + 8;
+                if (kiri + lebar > window.innerWidth - 8) kiri = window.innerWidth - lebar - 8;
+                if (kiri < 8) kiri = 8;
+                if (atas + tinggi > window.innerHeight - 8) atas = Math.max(8, rect.top - tinggi - 8);
+                pop.style.left = `${kiri}px`;
+                pop.style.top = `${atas}px`;
+                button.setAttribute('aria-expanded', 'true');
+                popoverKelas = { button, element: pop };
+                requestAnimationFrame(() => { if (pop.isConnected) pop.dataset.visible = 'true'; });
+            };
+
+            const tutupTooltipPenugasan = () => {
+                clearTimeout(tooltipTimer);
+                tooltipPenugasanTarget?.removeAttribute('aria-describedby');
+                tooltipPenugasanTarget = null;
+                if (tooltipPenugasan) tooltipPenugasan.dataset.visible = 'false';
+            };
+
+            const tampilkanTooltipPenugasan = (button) => {
+                const label = button?.dataset.overviewTooltip;
+                if (!label || !button.isConnected) return;
+                clearTimeout(tooltipTimer);
+                tooltipTimer = setTimeout(() => {
+                    if (!button.isConnected) return;
+                    let tip = document.getElementById('penugasan-tooltip');
+                    if (!tip) {
+                        tip = document.createElement('div');
+                        tip.id = 'penugasan-tooltip';
+                        tip.setAttribute('role', 'tooltip');
+                        document.body.appendChild(tip);
+                    }
+                    tip.textContent = label;
+                    tip.dataset.visible = 'true';
+                    tooltipPenugasan = tip;
+                    tooltipPenugasanTarget?.removeAttribute('aria-describedby');
+                    tooltipPenugasanTarget = button;
+                    button.setAttribute('aria-describedby', 'penugasan-tooltip');
+                    const rect = button.getBoundingClientRect();
+                    const lebar = tip.offsetWidth;
+                    const tinggi = tip.offsetHeight;
+                    let kiri = rect.left + rect.width / 2 - lebar / 2;
+                    let atas = rect.top - tinggi - 10;
+                    if (atas < 8) atas = Math.min(window.innerHeight - tinggi - 8, rect.bottom + 10);
+                    if (kiri + lebar > window.innerWidth - 8) kiri = window.innerWidth - lebar - 8;
+                    if (kiri < 8) kiri = 8;
+                    tip.style.left = `${kiri}px`;
+                    tip.style.top = `${atas}px`;
+                }, 80);
+            };
+
             const bukaPenugasanOverview = () => {
                 if (!penugasanOverview) return;
+                penugasanOverviewQuery = '';
+                if (penugasanOverviewSearch) penugasanOverviewSearch.value = '';
+                sinkronHapusPencarian();
                 renderPenugasanOverview();
+                resetPenugasanOverviewScroll();
                 penugasanReturnFocus = document.activeElement;
                 penugasanOverview.dataset.open = 'true';
                 penugasanOverview.removeAttribute('aria-hidden');
                 penugasanOverview.removeAttribute('inert');
+                requestAnimationFrame(() => penugasanOverviewSearch?.focus());
             };
             const tutupPenugasanOverview = () => {
                 if (!penugasanOverview) return;
+                tutupPopoverKelas();
+                tutupTooltipPenugasan();
                 penugasanOverview.dataset.open = 'false';
                 penugasanOverview.setAttribute('aria-hidden', 'true');
                 penugasanOverview.setAttribute('inert', '');
@@ -2113,11 +2433,11 @@
                     const freshGuru = result.data.guru || g;
                     const idx = rows.findIndex((r) => r.id === freshGuru.id); if (idx >= 0) rows[idx] = freshGuru;
                     renderPenugasanModal(freshGuru.mata_pelajaran_id || '', freshGuru.kelas_ids || []);
-                    penugasanSimpan.disabled = false;
+                    siapkanPenugasanChange();
                 } catch (err) {
                     penugasanPesan(err.message || 'Gagal memuat penugasan. Coba lagi.');
                     renderPenugasanModal(g.mata_pelajaran_id || '', g.kelas_ids || []);
-                    penugasanSimpan.disabled = false;
+                    siapkanPenugasanChange();
                 } finally {
                     penugasanLoading.classList.add('hidden');
                 }
@@ -2158,22 +2478,87 @@
             penugasanModal.querySelector('[data-penugasan-tutup]').addEventListener('click', tutupPenugasan);
             penugasanModal.querySelector('[data-penugasan-batal]').addEventListener('click', tutupPenugasan);
 
+            const tooltipTarget = (node) => (node instanceof Element ? node.closest('[data-overview-tooltip]') : null);
+            const tooltipOwns = (target, related) => related instanceof Node && target.contains(related);
+
             if (penugasanOverview) {
                 penugasanOverview.querySelectorAll('[data-penugasan-overview-tutup]').forEach((btn) => btn.addEventListener('click', tutupPenugasanOverview));
                 penugasanOverview.querySelector('[data-penugasan-overview-backdrop]')?.addEventListener('click', tutupPenugasanOverview);
+                penugasanOverviewSearch?.addEventListener('input', () => {
+                    tutupPopoverKelas();
+                    tutupTooltipPenugasan();
+                    penugasanOverviewQuery = penugasanOverviewSearch.value;
+                    sinkronHapusPencarian();
+                    renderPenugasanOverview();
+                    resetPenugasanOverviewScroll();
+                });
+                penugasanOverviewSearchClear?.addEventListener('click', () => {
+                    tutupPopoverKelas();
+                    tutupTooltipPenugasan();
+                    hapusPencarianOverview();
+                });
                 penugasanOverview.addEventListener('click', async (e) => {
-                    const btn = e.target.closest('[data-overview-kelola]');
+                    if (e.target.closest?.('[data-penugasan-overview-reset]')) {
+                        hapusPencarianOverview();
+                        return;
+                    }
+                    const kelasBtn = e.target.closest?.('[data-overview-kelas-popover]');
+                    if (kelasBtn) {
+                        bukaPopoverKelas(kelasBtn);
+                        return;
+                    }
+                    const btn = e.target.closest?.('[data-overview-kelola]');
                     if (!btn) return;
                     const g = rows.find((r) => String(r.id) === String(btn.dataset.overviewKelola));
                     if (!g) return;
                     tutupPenugasanOverview();
                     await bukaPenugasan(g);
                 });
+                penugasanOverview.addEventListener('pointerover', (e) => {
+                    const target = tooltipTarget(e.target);
+                    if (!target || tooltipOwns(target, e.relatedTarget)) return;
+                    tampilkanTooltipPenugasan(target);
+                });
+                penugasanOverview.addEventListener('pointerout', (e) => {
+                    const target = tooltipTarget(e.target);
+                    if (!target || tooltipOwns(target, e.relatedTarget)) return;
+                    tutupTooltipPenugasan();
+                });
+                penugasanOverview.addEventListener('focusin', (e) => {
+                    const target = tooltipTarget(e.target);
+                    if (target) tampilkanTooltipPenugasan(target);
+                });
+                penugasanOverview.addEventListener('focusout', (e) => {
+                    if (tooltipTarget(e.target)) tutupTooltipPenugasan();
+                });
+                penugasanOverviewScroll?.addEventListener('scroll', () => {
+                    tutupPopoverKelas();
+                    tutupTooltipPenugasan();
+                });
             }
+            document.addEventListener('pointerdown', (e) => {
+                if (popoverRingkas && !popoverRingkas.element.contains(e.target) && !popoverRingkas.button.contains(e.target)) {
+                    tutupPopoverRingkas();
+                }
+                if (popoverKelas && !popoverKelas.element.contains(e.target) && !popoverKelas.button.contains(e.target)) {
+                    tutupPopoverKelas();
+                }
+            });
+            window.addEventListener('resize', () => {
+                tutupPopoverRingkas();
+                tutupPopoverKelas();
+                tutupTooltipPenugasan();
+            });
+            window.addEventListener('scroll', (e) => {
+                if (popoverRingkas && !popoverRingkas.element.contains(e.target)) tutupPopoverRingkas();
+            }, true);
             penugasanGuruBtn?.addEventListener('click', bukaPenugasanOverview);
 
             document.addEventListener('keydown', (e) => {
                 if (e.key !== 'Escape') return;
+                if (tutupPopoverRingkas()) return;
+                if (tutupPopoverKelas()) return;
+                if (tooltipPenugasan?.dataset.visible === 'true') { tutupTooltipPenugasan(); return; }
                 if (penugasanModal.dataset.open === 'true') { tutupPenugasan(); return; }
                 if (penugasanOverview?.dataset.open === 'true') tutupPenugasanOverview();
             });

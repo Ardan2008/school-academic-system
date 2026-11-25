@@ -7,8 +7,9 @@ use App\Models\ActivityLog;
 use App\Models\JadwalPelajaran;
 use App\Models\SesiJamBelajar;
 use App\Services\ActivityLogger;
-use App\Services\JamBelajar;
 use App\Services\JadwalGuruService;
+use App\Services\JamBelajar;
+use App\Support\PerbandinganData;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -95,6 +96,27 @@ class JamBelajarController extends Controller
             'keterangan' => filled($data['keterangan'] ?? null) ? trim((string) $data['keterangan']) : null,
             'hari_aktif' => $hariBaru,
         ];
+
+        if (PerbandinganData::identik($konfigurasi, $pembaruan, [
+            'jam_masuk' => fn ($nilai, $model) => substr((string) $model->jam_masuk, 0, 5),
+            'jam_selesai' => fn ($nilai, $model) => substr((string) $model->jam_selesai, 0, 5),
+            'hari_aktif' => fn ($nilai, $model) => $this->jamBelajar->hariAktif($model),
+        ])) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Jam operasional sekolah berhasil diperbarui.',
+                'data' => [
+                    'konfigurasi' => [
+                        'id' => $konfigurasi->id,
+                        'jam_masuk' => $konfigurasi->jamMasukLabel(),
+                        'jam_selesai' => $konfigurasi->jamSelesaiLabel(),
+                        'keterangan' => $konfigurasi->keterangan,
+                        'hari_aktif' => $this->jamBelajar->hariAktif($konfigurasi),
+                        'jadwal_per_hari' => $this->jamBelajar->jumlahJadwalPerHari(),
+                    ],
+                ],
+            ]);
+        }
 
         $konfigurasi->update($pembaruan);
 
@@ -200,6 +222,40 @@ class JamBelajarController extends Controller
                     $bentrok->count().' jadwal terkait akan mengalami bentrok pada waktu baru. Sesuaikan jadwal tersebut terlebih dahulu.'
                 );
             }
+        }
+
+        $jadwalAkanBerubah = false;
+
+        if ($waktuBerubah && $jumlahJadwal > 0) {
+            $jadwalAkanBerubah = JadwalPelajaran::query()
+                ->where('sesi_id', $sesi->id)
+                ->get(['jam_mulai', 'jam_selesai'])
+                ->contains(fn ($jadwal) => substr((string) $jadwal->jam_mulai, 0, 5) !== $data['jam_mulai']
+                    || substr((string) $jadwal->jam_selesai, 0, 5) !== $data['jam_selesai']);
+        }
+
+        if (! $jadwalAkanBerubah && PerbandinganData::identik(
+            $sesi,
+            [
+                'nama' => $data['nama'],
+                'jenis' => $data['jenis'],
+                'urutan' => $data['urutan'],
+                'jam_mulai' => $data['jam_mulai'],
+                'jam_selesai' => $data['jam_selesai'],
+            ],
+            [
+                'jam_mulai' => fn ($nilai, $model) => substr((string) $model->jam_mulai, 0, 5),
+                'jam_selesai' => fn ($nilai, $model) => substr((string) $model->jam_selesai, 0, 5),
+            ]
+        )) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Sesi jam pelajaran berhasil diperbarui.',
+                'data' => [
+                    'sesi' => $this->barisSesi($sesi),
+                    'daftar_sesi' => $this->daftarSesi(),
+                ],
+            ]);
         }
 
         $jumlahTerkait = 0;

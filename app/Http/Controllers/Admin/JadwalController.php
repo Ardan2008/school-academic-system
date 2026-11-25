@@ -442,6 +442,48 @@ class JadwalController extends Controller
         }
 
         try {
+            if ($intent === 'detail-bentrok') {
+                $periode = $this->periodeMutasi($request);
+                $hasil = $this->jadwalGuru->detailBentrok((int) $request->input('jadwal_id', 0), $periode);
+
+                if ($hasil === null) {
+                    throw ValidationException::withMessages([
+                        'jadwal_id' => 'Jadwal ini tidak lagi mengalami bentrok. Muat ulang halaman jadwal.',
+                    ]);
+                }
+
+                return response()->json(['status' => 'success', 'data' => $hasil]);
+            }
+
+            if ($intent === 'pratinjau-bentrok') {
+                $periode = $this->periodeMutasi($request);
+                $hasil = $this->jadwalGuru->pratinjauPemindahan(
+                    (int) $request->input('jadwal_id', 0),
+                    trim((string) $request->input('hari', '')),
+                    (int) $request->input('sesi_id', 0),
+                    $periode,
+                );
+
+                return response()->json(['status' => 'success', 'data' => $hasil]);
+            }
+
+            if ($intent === 'pindahkan-bentrok') {
+                $periode = $this->periodeMutasi($request);
+                $hasil = $this->jadwalGuru->pindahkanJadwalBentrok(
+                    (int) $request->input('jadwal_id', 0),
+                    trim((string) $request->input('hari', '')),
+                    (int) $request->input('sesi_id', 0),
+                    $periode,
+                    $admin,
+                );
+
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Jadwal berhasil dipindahkan dan divalidasi ulang.',
+                    'data' => $hasil,
+                ]);
+            }
+
             if ($intent === 'sesuaikan-massal') {
                 $hasil = $this->jadwalGuru->terapkanPerubahanAdmin(
                     $request->input('perubahan', []),

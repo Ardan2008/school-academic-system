@@ -104,6 +104,7 @@
                                         <span class="text-xs text-slate-400">Menunggu pengumpulan</span>
                                     @else
                                         <form method="POST" action="{{ route('dashboard.guru.tugas-materi.pengumpulan.update', $kumpul) }}"
+                                              data-change-form
                                               class="space-y-2">
                                             @csrf
                                             @method('PUT')
@@ -113,6 +114,7 @@
                                                        aria-label="Nilai {{ $murid->name }}"
                                                        class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
                                                 <button type="submit"
+                                                        data-change-save
                                                         class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
                                                     <x-lucide-save class="h-3.5 w-3.5" />
                                                     Simpan
@@ -176,6 +178,7 @@
 
                         @if ($kumpul !== null)
                             <form method="POST" action="{{ route('dashboard.guru.tugas-materi.pengumpulan.update', $kumpul) }}"
+                                  data-change-form
                                   class="mt-3 space-y-2">
                                 @csrf
                                 @method('PUT')
@@ -185,6 +188,7 @@
                                            aria-label="Nilai {{ $murid->name }}"
                                            class="h-9 w-24 rounded-lg border border-slate-200 bg-white px-2.5 text-sm text-slate-800 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30">
                                     <button type="submit"
+                                            data-change-save
                                             class="inline-flex h-9 items-center justify-center gap-1 rounded-lg bg-primary-60 px-2.5 text-xs font-semibold text-white transition hover:bg-primary-70">
                                         <x-lucide-save class="h-3.5 w-3.5" />
                                         Simpan Nilai
@@ -212,4 +216,12 @@
             </div>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('form[data-change-form]').forEach((form) => {
+                window.saskansaChange?.bind(form, { save: '[data-change-save]' });
+            });
+        });
+    </script>
 @endsection

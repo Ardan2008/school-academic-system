@@ -139,10 +139,11 @@
                                 $cellItems = collect($perHariTampil[$namaHari] ?? [])
                                     ->filter(fn (array $item) => $cocokSesi($item, $sesi, $mulaiSesi, $selesaiSesi))
                                     ->values();
-                                $grupBentrok = collect($bentrokGroups)->first(function (array $grup) use ($namaHari, $cellItems): bool {
+                                $konflikCell = $cellItems->filter(fn (array $item): bool => ($item['bentrok'] ?? false))->values();
+                                $grupBentrok = collect($bentrokGroups)->first(function (array $grup) use ($namaHari, $konflikCell): bool {
                                     return $grup['hari'] === $namaHari
                                         && collect($grup['items'])->contains(
-                                            fn (array $item) => $cellItems->pluck('id')->contains($item['id'])
+                                            fn (array $item) => $konflikCell->pluck('id')->contains($item['id'])
                                         );
                                 });
                             @endphp
@@ -155,45 +156,64 @@
                                  data-cell-mulai="{{ $mulaiSesi }}"
                                  data-cell-selesai="{{ $selesaiSesi }}"
                                  @if (! $tampilkanSesiAwal) hidden @endif>
-                                @if ($cellItems->count() > 1)
+                                @if ($konflikCell->isNotEmpty())
                                     @php
                                         $teksCariKonflik = ($mode ?? 'guru') === 'admin'
-                                            ? $cellItems->map($teksCariAdmin)->implode(' ')
+                                            ? $konflikCell->map($teksCariAdmin)->implode(' ')
                                             : '';
+                                        $jumlahPasangan = count($grupBentrok['konflik'] ?? []);
                                     @endphp
                                     <div class="jg-conflict-box"
                                          data-conflict-box
                                          data-status="bentrok"
-                                         data-jumlah="{{ $cellItems->count() }}"
+                                         data-jumlah="{{ $konflikCell->count() }}"
                                          data-hari="{{ $namaHari }}"
                                          data-kelas-key="*"
                                          data-conflict-hari="{{ $namaHari }}"
                                          data-search="{{ $teksCariKonflik }}">
                                         <div class="flex items-center justify-between gap-1">
-                                            <span class="text-xs font-bold">Bentrok · {{ $cellItems->count() }} kelas</span>
+                                            <span class="text-xs font-bold">
+                                                Bentrok · {{ $jumlahPasangan > 0 ? $jumlahPasangan : $konflikCell->count() - 1 }} konflik
+                                            </span>
                                             <x-lucide-alert-triangle class="h-3.5 w-3.5" aria-hidden="true" />
                                         </div>
-                                        <div class="mt-1.5 flex flex-wrap gap-1">
-                                            @foreach ($cellItems as $itemKonflik)
-                                                <span class="jg-conflict-tag">
-                                                    {{ $itemKonflik['kelas'] }}{{ $itemKonflik['jurusan_singkat'] !== '' ? ' '.$itemKonflik['jurusan_singkat'] : '' }}
-                                                </span>
+                                        <p class="mt-1 text-[11px] font-bold">
+                                            {{ $grupBentrok['jenis_label'] ?? 'Bentrok jadwal' }} · {{ $konflikCell->count() }} jadwal
+                                        </p>
+                                        <div class="mt-1.5 space-y-1">
+                                            @foreach ($konflikCell as $itemKonflik)
+                                                <div class="rounded-lg bg-[var(--surface)] px-2 py-1.5 text-[11px] leading-tight">
+                                                    <p class="font-bold">
+                                                        {{ $itemKonflik['kelas'] }}{{ $itemKonflik['jurusan_singkat'] !== '' ? ' '.$itemKonflik['jurusan_singkat'] : '' }}
+                                                        · {{ $itemKonflik['mapel'] }}
+                                                    </p>
+                                                    <p class="opacity-80">{{ $itemKonflik['guru'] }} · {{ $itemKonflik['ruang'] !== '' ? $itemKonflik['ruang'] : 'Ruang —' }}</p>
+                                                </div>
                                             @endforeach
                                         </div>
                                         @if ($bisaKelola)
-                                            <button type="button"
-                                                    class="mt-2 inline-flex min-h-7 items-center rounded-lg bg-[var(--surface)] px-2 text-xs font-bold text-[#A3261C] transition hover:bg-[#fff5f4]"
-                                                    data-buka-penyesuaian
-                                                    data-fokus-bentrok="{{ $grupBentrok['id'] ?? '' }}">
-                                                Atur ulang
-                                            </button>
+                                            @if (($mode ?? 'guru') === 'admin')
+                                                <button type="button"
+                                                        class="mt-2 inline-flex min-h-7 w-full items-center justify-center gap-1 rounded-lg bg-[var(--surface)] px-2 text-xs font-bold text-[#A3261C] transition hover:bg-[#fff5f4]"
+                                                        data-atur-ulang-bentrok
+                                                        data-bentrok-jadwal-id="{{ $konflikCell->first()['id'] }}">
+                                                    <x-lucide-settings-2 class="h-3 w-3" aria-hidden="true" />
+                                                    Atur Ulang Jadwal
+                                                </button>
+                                            @else
+                                                <button type="button"
+                                                        class="mt-2 inline-flex min-h-7 items-center rounded-lg bg-[var(--surface)] px-2 text-xs font-bold text-[#A3261C] transition hover:bg-[#fff5f4]"
+                                                        data-buka-penyesuaian
+                                                        data-fokus-bentrok="{{ $grupBentrok['id'] ?? '' }}">
+                                                    Atur ulang
+                                                </button>
+                                            @endif
                                         @endif
                                     </div>
-                                @else
-                                    @foreach ($cellItems as $itemGrid)
-                                        @include('dashboard.guru.jadwal-pelajaran.partials.chip', ['item' => $itemGrid])
-                                    @endforeach
                                 @endif
+                                @foreach ($cellItems->reject(fn (array $item): bool => ($item['bentrok'] ?? false)) as $itemGrid)
+                                    @include('dashboard.guru.jadwal-pelajaran.partials.chip', ['item' => $itemGrid])
+                                @endforeach
                             </div>
                         @endforeach
                     @endif

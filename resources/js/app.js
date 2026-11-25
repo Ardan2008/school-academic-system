@@ -1,6 +1,7 @@
 import SwalBase from 'sweetalert2';
 import 'sweetalert2/dist/sweetalert2.min.css';
 import './jadwal-guru.js';
+import buatChangeDetection from './change-detection.js';
 
 /**
  * Tema SweetAlert mengikuti palet aplikasi (biru SASKANSA).
@@ -371,6 +372,7 @@ window.saskansaUi = {
     confirm: konfirmasiHapus,
     error: notifikasiGalat,
 };
+window.saskansaChange = buatChangeDetection();
 
 export default Swal;
 

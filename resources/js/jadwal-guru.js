@@ -383,7 +383,10 @@ function initJadwalGuru() {
 
     const sinkronkanRingkasan = () => {
         setTeks(elemen('[data-banner-saran]', root), daftarSaran.length);
-        setTeks(elemen('[data-banner-bentrok]', root), grupBentrok.length);
+        setTeks(
+            elemen('[data-banner-bentrok]', root),
+            grupBentrok.reduce((total, grup) => total + (Array.isArray(grup.konflik) ? grup.konflik.length : 1), 0)
+        );
 
         const sumber = itemsCari();
         const nilaiStatistik = {
@@ -819,6 +822,7 @@ function initJadwalGuru() {
         if (nilai.ruang !== undefined && nilai.ruang !== null) {
             elemen('#jadwal-ruang', form).value = String(nilai.ruang);
         }
+        window.saskansaChange?.refresh?.(form);
         cekBentrok();
     };
 
@@ -880,9 +884,13 @@ function initJadwalGuru() {
         if (rekomendasiWrap) rekomendasiWrap.classList.toggle('hidden', !Array.isArray(rekomendasi) || rekomendasi.length === 0);
         const ikon = elemen('[data-check-icon]', panel);
         if (ikon) ikon.style.color = sukses ? '#0F6B3C' : '#A3261C';
-        daftarElemen('[data-simpan-utama], [data-simpan-lagi]', root).forEach((tombol) => {
-            tombol.disabled = !sukses;
-        });
+        const pengubahJadwal = window.saskansaChange?.get?.(form);
+        if (pengubahJadwal) window.saskansaChange.valid(form, sukses);
+        if (form?.dataset.mode !== 'edit' || !pengubahJadwal) {
+            daftarElemen('[data-simpan-utama], [data-simpan-lagi]', root).forEach((tombol) => {
+                tombol.disabled = !sukses;
+            });
+        }
     };
 
     const cekBentrok = () => {
@@ -957,6 +965,7 @@ function initJadwalGuru() {
         const mapelTampil = elemen('#jadwal-mapel-tampil', form);
         if (mapelInput && opsi.dataset.mapel) mapelInput.value = opsi.dataset.mapel;
         if (mapelTampil) mapelTampil.value = String(opsi.textContent).split(' — ')[0].trim();
+        window.saskansaChange?.refresh?.(form);
         cekBentrok();
     };
 
@@ -975,6 +984,7 @@ function initJadwalGuru() {
         }
 
         sinkronMapel();
+        window.saskansaChange?.refresh?.(form);
     };
 
     const bukaForm = (mode, data = {}) => {
@@ -1023,6 +1033,24 @@ function initJadwalGuru() {
         aturHariTerpilih();
         sinkronGuru();
         aturSesiTerisi();
+        if (edit && window.saskansaChange?.bind) {
+            const perubahanJadwal = window.saskansaChange.bind(form, {
+                save: '[data-simpan-utama], [data-simpan-lagi]',
+                sources: () => ({
+                    hari: elemen('#jadwal-hari', form)?.value ?? '',
+                    sesi_id: elemen('#jadwal-sesi', form)?.value ?? '',
+                    mata_pelajaran_id: elemen('#jadwal-mapel', form)?.value ?? '',
+                    guru_id: elemen('#jadwal-guru', form)?.value ?? '',
+                }),
+                always: false,
+            });
+            perubahanJadwal?.always?.(false);
+            perubahanJadwal?.busy?.(false);
+            perubahanJadwal?.snapshot?.();
+        } else {
+            window.saskansaChange?.always?.(form, true);
+            window.saskansaChange?.busy?.(form, false);
+        }
         aturCheck({
             judul: 'Pemeriksaan bentrok',
             pesan: 'Pilih hari, kelas, ruang, dan sesi untuk memeriksa bentrok secara langsung.',
@@ -1072,6 +1100,321 @@ function initJadwalGuru() {
         tutupOverlay(overlayPenyesuaian);
         notifikasi(pesan);
         window.setTimeout(() => window.location.reload(), 800);
+    };
+
+    const overlayBentrok = elemen('[data-bentrok-overlay]', root);
+    const stateBentrok = {
+        jadwalId: 0,
+        detail: null,
+        pilihId: 0,
+        sesiId: 0,
+        hari: '',
+        pratinjau: null,
+        token: 0,
+        tokenPratinjau: 0,
+        menyimpan: false,
+    };
+
+    const paramBentrok = (intent, tambahan = {}) => {
+        const data = new URLSearchParams({
+            intent,
+            tahun_ajaran: root.dataset.tahunAjaran ?? '',
+            semester: root.dataset.semester ?? '',
+            ...tambahan,
+        });
+        return data;
+    };
+
+    const tutupBentrok = () => {
+        stateBentrok.detail = null;
+        stateBentrok.pratinjau = null;
+        stateBentrok.pilihId = 0;
+        stateBentrok.sesiId = 0;
+        stateBentrok.hari = '';
+        stateBentrok.token++;
+        stateBentrok.tokenPratinjau++;
+        tutupOverlay(overlayBentrok);
+    };
+
+    const aturTampilanBentrok = (bagian) => {
+        const peta = {
+            muat: '[data-bentrok-muat]',
+            gagal: '[data-bentrok-gagal]',
+            konten: '[data-bentrok-konten]',
+        };
+        Object.entries(peta).forEach(([kunci, selector]) => {
+            const el = elemen(selector, overlayBentrok);
+            if (el) el.hidden = kunci !== bagian;
+        });
+    };
+
+    const jadwalBentrokTerpilih = () => (stateBentrok.detail?.alternatif ?? [])
+        .find((item) => Number(item.id) === Number(stateBentrok.pilihId)) ?? null;
+
+    const infoJadwalBentrok = (jadwal) => [
+        `${jadwal.kelas ?? '-'} · ${jadwal.mapel ?? '-'}`,
+        `${jadwal.guru ?? '-'} · Ruang ${jadwal.ruang ?? '-'}`,
+        `${jadwal.hari ?? '-'} · ${jadwal.sesi_label ?? '-'} · ${jadwal.jam ?? '-'}`,
+    ].filter(Boolean);
+
+    const kartuJadwalBentrok = (jadwal, kelas = '') => {
+        const kartu = buatElemen('div', `rounded-lg border border-[var(--jg-line)] bg-[var(--surface)] px-2.5 py-2 ${kelas}`);
+        infoJadwalBentrok(jadwal).forEach((baris, indeks) => {
+            kartu.append(buatElemen(
+                'p',
+                indeks === 0 ? 'text-xs font-bold jg-title' : 'mt-0.5 text-[11px] jg-muted',
+                baris,
+            ));
+        });
+        return kartu;
+    };
+
+    const renderInfoBentrok = () => {
+        const grup = stateBentrok.detail?.grup ?? {};
+        setTeks(elemen('[data-bentrok-hari]', overlayBentrok), grup.hari ?? '-');
+        setTeks(elemen('[data-bentrok-sesi]', overlayBentrok), grup.sesi_label ?? '-');
+        setTeks(elemen('[data-bentrok-jam]', overlayBentrok), grup.jam ?? '-');
+        setTeks(
+            elemen('[data-bentrok-jenis]', overlayBentrok),
+            (grup.jenis_label ?? 'Bentrok').replaceAll(' · ', ' / ')
+        );
+
+        const daftarKonflik = elemen('[data-bentrok-konflik]', overlayBentrok);
+        const daftarJadwal = elemen('[data-bentrok-daftar]', overlayBentrok);
+        if (!daftarKonflik || !daftarJadwal) return;
+        daftarKonflik.replaceChildren();
+        daftarJadwal.replaceChildren();
+
+        (grup.konflik ?? []).forEach((konflik) => {
+            const kartu = buatElemen('div', 'rounded-lg bg-[var(--surface)] px-2.5 py-2');
+            kartu.append(buatElemen('p', 'text-[11px] font-bold text-[#A3261C]', konflik.judul ?? 'Bentrok'));
+            kartu.append(buatElemen('p', 'mt-0.5 text-[11px] leading-relaxed', konflik.pesan ?? ''));
+            daftarKonflik.append(kartu);
+        });
+
+        (stateBentrok.detail?.alternatif ?? []).forEach((jadwal) => {
+            daftarJadwal.append(kartuJadwalBentrok(jadwal));
+        });
+    };
+
+    const renderPilihJadwal = () => {
+        const wadah = elemen('[data-bentrok-pilih-jadwal]', overlayBentrok);
+        if (!wadah) return;
+        wadah.replaceChildren();
+        const daftar = stateBentrok.detail?.alternatif ?? [];
+        setTeks(elemen('[data-bentrok-jumlah-jadwal]', overlayBentrok), `${daftar.length} jadwal terlibat`);
+
+        daftar.forEach((jadwal) => {
+            const aktif = Number(jadwal.id) === Number(stateBentrok.pilihId);
+            const tombol = buatElemen(
+                'button',
+                `jg-session-pilih w-full ${aktif ? 'border-[#1A6BDB]!' : ''}`,
+            );
+            tombol.type = 'button';
+            tombol.setAttribute('aria-pressed', aktif ? 'true' : 'false');
+            tombol.dataset.bentrokPilih = String(jadwal.id);
+            infoJadwalBentrok(jadwal).forEach((baris, indeks) => {
+                tombol.append(buatElemen(
+                    'p',
+                    indeks === 0 ? 'text-xs font-bold jg-title' : 'mt-0.5 text-[11px] jg-muted',
+                    baris,
+                ));
+            });
+            tombol.append(buatElemen(
+                'p',
+                'mt-1 text-[11px] font-bold text-[#0F6B3C]',
+                aktif ? '✓ Jadwal ini akan dipindahkan' : 'Klik untuk memindahkan jadwal ini',
+            ));
+            tombol.addEventListener('click', () => {
+                stateBentrok.pilihId = Number(jadwal.id);
+                stateBentrok.sesiId = 0;
+                stateBentrok.hari = '';
+                stateBentrok.pratinjau = null;
+                stateBentrok.tokenPratinjau++;
+                const simpan = elemen('[data-bentrok-simpan]', overlayBentrok);
+                if (simpan) simpan.disabled = true;
+                setTeks(
+                    elemen('[data-bentrok-ringkasan]', overlayBentrok),
+                    'Pilih hari dan sesi pengganti untuk melanjutkan.'
+                );
+                const pratinjauWrap = elemen('[data-bentrok-pratinjau-wrap]', overlayBentrok);
+                if (pratinjauWrap) pratinjauWrap.hidden = true;
+                renderPilihJadwal();
+                renderAlternatif();
+            });
+            wadah.append(tombol);
+        });
+    };
+
+    const renderAlternatif = () => {
+        const wadah = elemen('[data-bentrok-alternatif]', overlayBentrok);
+        const kosong = elemen('[data-bentrok-kosong]', overlayBentrok);
+        if (!wadah || !kosong) return;
+        wadah.replaceChildren();
+        const jadwal = jadwalBentrokTerpilih();
+        const daftar = jadwal?.opsi ?? [];
+        kosong.hidden = daftar.length > 0;
+
+        daftar.forEach((opsi) => {
+            const aktif = opsi.hari === stateBentrok.hari && Number(opsi.sesi_id) === Number(stateBentrok.sesiId);
+            const tombol = buatElemen(
+                'button',
+                `jg-session-pilih ${aktif ? 'border-[#0F6B3C]!' : ''}`,
+            );
+            tombol.type = 'button';
+            tombol.setAttribute('aria-pressed', aktif ? 'true' : 'false');
+            tombol.append(buatElemen('p', 'text-xs font-bold jg-title', `${opsi.hari} · ${opsi.sesi_label}`));
+            tombol.append(buatElemen('p', 'mt-0.5 text-[11px] tabular-nums jg-muted', opsi.jam));
+            tombol.append(buatElemen('p', 'mt-0.5 text-[11px] jg-muted', `Ruang ${opsi.ruang}`));
+            tombol.append(buatElemen(
+                'p',
+                'mt-1 text-[11px] font-bold text-[#0F6B3C]',
+                `✓ ${opsi.status_label ?? 'Tersedia'}`,
+            ));
+            tombol.addEventListener('click', () => {
+                stateBentrok.hari = opsi.hari;
+                stateBentrok.sesiId = Number(opsi.sesi_id);
+                stateBentrok.pratinjau = null;
+                renderAlternatif();
+                muatPratinjauBentrok();
+            });
+            wadah.append(tombol);
+        });
+    };
+
+    const renderPratinjau = () => {
+        const wadah = elemen('[data-bentrok-pratinjau]', overlayBentrok);
+        const pemeriksaan = elemen('[data-bentrok-pemeriksaan]', overlayBentrok);
+        const bungkus = elemen('[data-bentrok-pratinjau-wrap]', overlayBentrok);
+        if (!wadah || !pemeriksaan || !bungkus) return;
+        wadah.replaceChildren();
+        pemeriksaan.replaceChildren();
+        const data = stateBentrok.pratinjau;
+        bungkus.hidden = data === null;
+
+        if (data === null) return;
+        const grid = buatElemen('div', 'grid grid-cols-1 gap-2 sm:grid-cols-2');
+        const sebelum = buatElemen('div', 'rounded-lg border border-[#F3B7B1] px-2.5 py-2');
+        sebelum.append(buatElemen('p', 'text-[11px] font-bold text-[#A3261C]', 'Jadwal sebelumnya'));
+        infoJadwalBentrok(data.sebelum).forEach((baris) => {
+            sebelum.append(buatElemen('p', 'mt-0.5 text-[11px] jg-muted', baris));
+        });
+        const sesudah = buatElemen('div', 'rounded-lg border border-[#B7E4C7] px-2.5 py-2');
+        sesudah.append(buatElemen('p', 'text-[11px] font-bold text-[#0F6B3C]', 'Jadwal setelah dipindahkan'));
+        infoJadwalBentrok(data.sesudah).forEach((baris) => {
+            sesudah.append(buatElemen('p', 'mt-0.5 text-[11px] jg-muted', baris));
+        });
+        grid.append(sebelum, sesudah);
+        wadah.append(grid);
+
+        (data.pemeriksaan ?? []).forEach((item) => {
+            const baris = buatElemen('li', 'flex items-center gap-1.5 text-[11px] font-semibold');
+            baris.style.color = item.aman ? '#0F6B3C' : '#A3261C';
+            baris.append(buatElemen('span', '', item.aman ? '✓' : '×'), buatElemen('span', '', item.label));
+            pemeriksaan.append(baris);
+        });
+        setTeks(elemen('[data-bentrok-ringkasan]', overlayBentrok), data.pesan ?? '');
+    };
+
+    const muatPratinjauBentrok = async () => {
+        const token = ++stateBentrok.tokenPratinjau;
+        const simpan = elemen('[data-bentrok-simpan]', overlayBentrok);
+        if (simpan) simpan.disabled = true;
+        setTeks(elemen('[data-bentrok-progres]', overlayBentrok), 'Memvalidasi guru, kelas, dan ruangan pada jadwal pengganti...');
+        try {
+            const hasil = await kirimIntent(paramBentrok('pratinjau-bentrok', {
+                jadwal_id: String(stateBentrok.pilihId),
+                hari: stateBentrok.hari,
+                sesi_id: String(stateBentrok.sesiId),
+            }), 'Pratinjau jadwal gagal dimuat.');
+            if (token !== stateBentrok.tokenPratinjau) return;
+            stateBentrok.pratinjau = hasil.data;
+            renderPratinjau();
+            if (simpan) simpan.disabled = !hasil.data.aman;
+            if (!hasil.data.aman) notifikasi(hasil.data.pesan ?? 'Jadwal pengganti tidak tersedia.', false);
+        } catch (galat) {
+            if (token !== stateBentrok.tokenPratinjau) return;
+            stateBentrok.pratinjau = null;
+            renderPratinjau();
+            notifikasi(galat.message ?? 'Pratinjau jadwal gagal dimuat.', false);
+        } finally {
+            if (token === stateBentrok.tokenPratinjau) {
+                setTeks(
+                    elemen('[data-bentrok-progres]', overlayBentrok),
+                    'Identifikasi bentrok → Detail konflik → Pilih jadwal → Pilih waktu → Pratinjau → Simpan'
+                );
+            }
+        }
+    };
+
+    const muatDetailBentrok = async () => {
+        const token = ++stateBentrok.token;
+        aturTampilanBentrok('muat');
+        const simpan = elemen('[data-bentrok-simpan]', overlayBentrok);
+        if (simpan) simpan.disabled = true;
+        try {
+            const hasil = await kirimIntent(paramBentrok('detail-bentrok', {
+                jadwal_id: String(stateBentrok.jadwalId),
+            }), 'Detail bentrok gagal dimuat.');
+            if (token !== stateBentrok.token) return;
+            stateBentrok.detail = hasil.data;
+            stateBentrok.pilihId = Number(hasil.data.alternatif?.[0]?.id ?? 0);
+            stateBentrok.sesiId = 0;
+            stateBentrok.hari = '';
+            stateBentrok.pratinjau = null;
+            renderInfoBentrok();
+            renderPilihJadwal();
+            renderAlternatif();
+            renderPratinjau();
+            aturTampilanBentrok('konten');
+            setTeks(elemen('[data-bentrok-ringkasan]', overlayBentrok), 'Pilih jadwal dan waktu pengganti untuk melanjutkan.');
+        } catch (galat) {
+            if (token !== stateBentrok.token) return;
+            setTeks(elemen('[data-bentrok-gagal-pesan]', overlayBentrok), galat.message ?? 'Detail konflik tidak dapat dimuat.');
+            aturTampilanBentrok('gagal');
+        }
+    };
+
+    const bukaBentrok = (jadwalId) => {
+        const id = Number(jadwalId || 0);
+        if (id <= 0 || !overlayBentrok) return;
+        stateBentrok.jadwalId = id;
+        stateBentrok.detail = null;
+        stateBentrok.pratinjau = null;
+        stateBentrok.pilihId = 0;
+        stateBentrok.sesiId = 0;
+        stateBentrok.hari = '';
+        stateBentrok.token++;
+        stateBentrok.tokenPratinjau++;
+        aturTampilanBentrok('muat');
+        bukaOverlay(overlayBentrok);
+        muatDetailBentrok();
+    };
+
+    const simpanBentrok = async () => {
+        if (stateBentrok.menyimpan || stateBentrok.pratinjau === null || !stateBentrok.pratinjau.aman) return;
+        stateBentrok.menyimpan = true;
+        const tombol = elemen('[data-bentrok-simpan]', overlayBentrok);
+        const label = elemen('[data-bentrok-simpan-label]', overlayBentrok);
+        const teksAwal = label?.textContent ?? 'Simpan Perubahan';
+        if (tombol) tombol.disabled = true;
+        if (label) label.textContent = 'Menyimpan...';
+        try {
+            const hasil = await kirimIntent(paramBentrok('pindahkan-bentrok', {
+                jadwal_id: String(stateBentrok.pilihId),
+                hari: stateBentrok.hari,
+                sesi_id: String(stateBentrok.sesiId),
+            }), 'Perubahan jadwal gagal disimpan.');
+            notifikasi(hasil.message ?? 'Jadwal berhasil dipindahkan.');
+            tutupBentrok();
+            window.setTimeout(() => window.location.reload(), 600);
+        } catch (galat) {
+            notifikasi(galat.message ?? 'Perubahan jadwal gagal disimpan.', false);
+            if (tombol) tombol.disabled = false;
+        } finally {
+            stateBentrok.menyimpan = false;
+            if (label) label.textContent = teksAwal;
+        }
     };
 
     const namaBerkasEkspor = (disposisi) => {
@@ -1283,15 +1626,26 @@ function initJadwalGuru() {
     daftarElemen('[data-tutup-jadwal-modal]', root).forEach((tombol) => {
         tombol.addEventListener('click', () => tutupOverlay(overlayForm));
     });
-    [overlayForm, overlayPenyesuaian].forEach((overlay) => {
+    daftarElemen('[data-atur-ulang-bentrok]', root).forEach((tombol) => {
+        tombol.addEventListener('click', () => bukaBentrok(tombol.dataset.bentrokJadwalId ?? 0));
+    });
+    daftarElemen('[data-tutup-bentrok]', root).forEach((tombol) => {
+        tombol.addEventListener('click', tutupBentrok);
+    });
+    elemen('[data-bentrok-simpan]', root)?.addEventListener('click', simpanBentrok);
+    elemen('[data-bentrok-coba-lagi]', root)?.addEventListener('click', muatDetailBentrok);
+    [overlayForm, overlayPenyesuaian, overlayBentrok].forEach((overlay) => {
         overlay?.addEventListener('mousedown', (event) => {
-            if (event.target === overlay) tutupOverlay(overlay);
+            if (event.target !== overlay) return;
+            if (overlay === overlayBentrok) tutupBentrok();
+            else tutupOverlay(overlay);
         });
     });
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
         if (overlayForm?.dataset.open === 'true') tutupOverlay(overlayForm);
+        else if (overlayBentrok?.dataset.open === 'true') tutupBentrok();
         else if (overlayPenyesuaian?.dataset.open === 'true') tutupOverlay(overlayPenyesuaian);
     });
 
@@ -1392,6 +1746,7 @@ function initJadwalGuru() {
                 elemen('#jadwal-hari', form).value = tombol.dataset.hariPilih;
                 aturHariTerpilih();
                 aturSesiTerisi();
+                window.saskansaChange?.refresh?.(form);
                 cekBentrok();
             });
         });
@@ -1400,6 +1755,7 @@ function initJadwalGuru() {
                 if (tombol.disabled) return;
                 elemen('#jadwal-sesi', form).value = tombol.dataset.id;
                 aturSesiTerisi();
+                window.saskansaChange?.refresh?.(form);
                 cekBentrok();
             });
         });
@@ -1409,10 +1765,17 @@ function initJadwalGuru() {
         form.addEventListener('submit', () => {
             const label = elemen('[data-label-simpan]', root);
             if (label) label.textContent = 'Menyimpan...';
-            daftarElemen('[data-simpan-utama], [data-simpan-lagi]', root).forEach((tombol) => {
+            const tombolSimpan = daftarElemen('[data-simpan-utama], [data-simpan-lagi]', root);
+            tombolSimpan.forEach((tombol) => {
                 tombol.dataset.loading = '1';
-                tombol.disabled = true;
             });
+            if (window.saskansaChange?.get?.(form)) {
+                window.saskansaChange.busy(form, true);
+            } else {
+                tombolSimpan.forEach((tombol) => {
+                    tombol.disabled = true;
+                });
+            }
         });
     }
 

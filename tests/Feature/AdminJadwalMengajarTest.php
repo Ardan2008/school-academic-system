@@ -9,6 +9,7 @@ use App\Models\KelasRombel;
 use App\Models\MataPelajaran;
 use App\Models\SesiJamBelajar;
 use App\Models\User;
+use App\Services\JadwalGuruService;
 use App\Support\Kelas;
 use App\Support\Periode;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -120,6 +121,29 @@ class AdminJadwalMengajarTest extends TestCase
             'tahun_ajaran' => $periode['tahun_ajaran'],
             'semester' => $periode['semester'],
         ], $overrides);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function analisisAdmin(): array
+    {
+        return app(JadwalGuruService::class)->analisisSemua(Periode::periodeSekarang());
+    }
+
+    /**
+     * @param  array<string, mixed>  $analisis
+     * @return array<int, string>
+     */
+    private function jenisKonflik(array $analisis, int $jadwalId): array
+    {
+        return collect($analisis['bentrok'])
+            ->filter(fn (array $grup): bool => collect($grup['items'])
+                ->contains(fn (array $item): bool => (int) $item['id'] === $jadwalId))
+            ->flatMap(fn (array $grup): array => $grup['jenis'])
+            ->unique()
+            ->values()
+            ->all();
     }
 
     public function test_halaman_admin_menampilkan_seluruh_jadwal_dan_kontrol_kelola(): void
@@ -549,6 +573,263 @@ class AdminJadwalMengajarTest extends TestCase
 
         $this->assertStringContainsString('Guru Fisika', $isiTerfilter);
         $this->assertStringNotContainsString('Guru Matematika', $isiTerfilter);
+    }
+
+    public function test_satu_guru_mengajar_dua_kelas_pada_sesi_sama_dideteksi_bentrok(): void
+    {
+        $guru = $this->guru('Matematika', 'Guru Sama');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $a = $this->jadwal($guru, 'Matematika', 'Senin', 'R.101', '12-1');
+        $b = $this->jadwal($guru, 'Fisika', 'Senin', 'R.102', '12-2');
+
+        $analisis = $this->analisisAdmin();
+
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $a->id)['bentrok']);
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $b->id)['bentrok']);
+        $this->assertSame(['guru'], $this->jenisKonflik($analisis, $a->id));
+        $this->assertSame(['guru'], $this->jenisKonflik($analisis, $b->id));
+    }
+
+    public function test_satu_kelas_menerima_dua_mapel_pada_sesi_sama_dideteksi_bentrok(): void
+    {
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1');
+        $b = $this->jadwal($guruB, 'Fisika', 'Senin', 'R.102', '12-1');
+
+        $analisis = $this->analisisAdmin();
+
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $a->id)['bentrok']);
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $b->id)['bentrok']);
+        $this->assertSame(['kelas'], $this->jenisKonflik($analisis, $a->id));
+        $this->assertSame(['kelas'], $this->jenisKonflik($analisis, $b->id));
+    }
+
+    public function test_satu_ruang_dipakai_dua_kelas_pada_sesi_sama_dideteksi_bentrok(): void
+    {
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1');
+        $b = $this->jadwal($guruB, 'Fisika', 'Senin', 'R.101', '12-2');
+
+        $analisis = $this->analisisAdmin();
+
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $a->id)['bentrok']);
+        $this->assertTrue(collect($analisis['items'])->firstWhere('id', $b->id)['bentrok']);
+        $this->assertSame(['ruang'], $this->jenisKonflik($analisis, $a->id));
+        $this->assertSame(['ruang'], $this->jenisKonflik($analisis, $b->id));
+    }
+
+    public function test_kelas_guru_dan_ruang_berbeda_pada_sesi_sama_tidak_bentrok(): void
+    {
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1');
+        $b = $this->jadwal($guruB, 'Fisika', 'Senin', 'R.102', '12-2');
+
+        $analisis = $this->analisisAdmin();
+
+        $this->assertSame(0, $analisis['bentrokJumlah']);
+        $this->assertSame([], $analisis['bentrok']);
+        $this->assertFalse(collect($analisis['items'])->firstWhere('id', $a->id)['bentrok']);
+        $this->assertFalse(collect($analisis['items'])->firstWhere('id', $b->id)['bentrok']);
+    }
+
+    public function test_detail_pratinjau_dan_pemindahan_bentrok_berhasil_divalidasi_ulang(): void
+    {
+        $admin = $this->admin();
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $sesiBentrok = $this->sesi('07:00', '08:30', 'Sesi Bentrok');
+        $sesiAman = $this->sesi('06:45', '07:30', 'Jam Pelajaran 1');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1', self::JURUSAN, $sesiBentrok);
+        $b = $this->jadwal($guruB, 'Fisika', 'Senin', 'R.101', '12-2', self::JURUSAN, $sesiBentrok);
+
+        $detail = $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'detail-bentrok',
+                'jadwal_id' => $a->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.grup.jumlah', 2);
+
+        $this->assertTrue(collect($detail->json('data.alternatif'))->contains(
+            fn (array $item): bool => (int) $item['id'] === $a->id
+                && collect($item['opsi'])->contains(
+                    fn (array $opsi): bool => $opsi['hari'] === 'Selasa'
+                        && (int) $opsi['sesi_id'] === (int) $sesiAman->id
+                )
+        ));
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pratinjau-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiAman->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.aman', true)
+            ->assertJsonPath('data.konflik', []);
+
+        $pindah = $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pindahkan-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiAman->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.validasi_ulang.aman', true);
+
+        $this->assertSame($a->id, $pindah->json('data.id'));
+        $this->assertDatabaseHas('jadwal', [
+            'id' => $a->id,
+            'hari' => 'Selasa',
+            'sesi_id' => $sesiAman->id,
+            'jam_mulai' => '06:45',
+            'jam_selesai' => '07:30',
+        ]);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'activity_type' => ActivityLog::TIPE_JADWAL_PENYESUAIAN,
+        ]);
+        $this->assertDatabaseHas('jadwal', ['id' => $b->id, 'hari' => 'Senin']);
+    }
+
+    public function test_pratinjau_dan_pemindahan_ke_sesi_terpakai_ditolak_tanpa_mengubah_jadwal(): void
+    {
+        $admin = $this->admin();
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $guruC = $this->guru('Sejarah', 'Guru Sejarah');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $this->siswa('13-1');
+        $sesiBentrok = $this->sesi('07:00', '08:30', 'Sesi Bentrok');
+        $sesiTerpakai = $this->sesi('06:45', '07:30', 'Jam Pelajaran 1');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1', self::JURUSAN, $sesiBentrok);
+        $this->jadwal($guruB, 'Fisika', 'Senin', 'R.101', '12-2', self::JURUSAN, $sesiBentrok);
+        $this->jadwal($guruC, 'Sejarah', 'Selasa', 'R.101', '13-1', self::JURUSAN, $sesiTerpakai);
+
+        $pratinjau = $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pratinjau-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiTerpakai->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success')
+            ->assertJsonPath('data.aman', false);
+
+        $this->assertNotEmpty($pratinjau->json('data.konflik'));
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pindahkan-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiTerpakai->id,
+            ])
+            ->assertStatus(422)
+            ->assertJsonPath('status', 'error');
+
+        $this->assertDatabaseHas('jadwal', [
+            'id' => $a->id,
+            'hari' => 'Senin',
+            'sesi_id' => $sesiBentrok->id,
+        ]);
+    }
+
+    public function test_memindahkan_satu_jadwal_menyisakan_konflik_lainnya(): void
+    {
+        $admin = $this->admin();
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $this->siswa('12-3');
+        $sesiBentrok = $this->sesi('07:00', '08:30', 'Sesi Bentrok');
+        $sesiAman = $this->sesi('06:45', '07:30', 'Jam Pelajaran 1');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1', self::JURUSAN, $sesiBentrok);
+        $b = $this->jadwal($guruB, 'Fisika', 'Senin', 'R.101', '12-2', self::JURUSAN, $sesiBentrok);
+        $c = $this->jadwal($guruB, 'Kimia', 'Senin', 'R.103', '12-3', self::JURUSAN, $sesiBentrok);
+
+        $analisisAwal = $this->analisisAdmin();
+        $this->assertSame(['ruang'], $this->jenisKonflik($analisisAwal, $a->id));
+        $this->assertContains('guru', $this->jenisKonflik($analisisAwal, $b->id));
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pindahkan-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiAman->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        $analisisAkhir = $this->analisisAdmin();
+        $itemA = collect($analisisAkhir['items'])->firstWhere('id', $a->id);
+        $itemB = collect($analisisAkhir['items'])->firstWhere('id', $b->id);
+        $itemC = collect($analisisAkhir['items'])->firstWhere('id', $c->id);
+
+        $this->assertFalse($itemA['bentrok']);
+        $this->assertTrue($itemB['bentrok']);
+        $this->assertTrue($itemC['bentrok']);
+        $this->assertContains('guru', $this->jenisKonflik($analisisAkhir, $b->id));
+        $this->assertContains('guru', $this->jenisKonflik($analisisAkhir, $c->id));
+    }
+
+    public function test_perubahan_bentrok_bertahan_setelah_halaman_dimuat_ulang(): void
+    {
+        $admin = $this->admin();
+        $guruA = $this->guru('Matematika', 'Guru Matematika');
+        $guruB = $this->guru('Fisika', 'Guru Fisika');
+        $this->siswa('12-1');
+        $this->siswa('12-2');
+        $sesiBentrok = $this->sesi('07:00', '08:30', 'Sesi Bentrok');
+        $sesiAman = $this->sesi('06:45', '07:30', 'Jam Pelajaran 1');
+        $a = $this->jadwal($guruA, 'Matematika', 'Senin', 'R.101', '12-1', self::JURUSAN, $sesiBentrok);
+        $this->jadwal($guruB, 'Fisika', 'Senin', 'R.101', '12-2', self::JURUSAN, $sesiBentrok);
+
+        $this->actingAs($admin)
+            ->get(route('dashboard.admin.jadwal-mengajar.index'))
+            ->assertOk()
+            ->assertSee('data-conflict-box')
+            ->assertSee('data-banner-bentrok');
+
+        $this->actingAs($admin)
+            ->postJson(route('dashboard.admin.jadwal-mengajar.intent'), [
+                'intent' => 'pindahkan-bentrok',
+                'jadwal_id' => $a->id,
+                'hari' => 'Selasa',
+                'sesi_id' => $sesiAman->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        $html = (string) $this->actingAs($admin)
+            ->get(route('dashboard.admin.jadwal-mengajar.index'))
+            ->assertOk()
+            ->assertSee('Selasa')
+            ->getContent();
+
+        $this->assertStringNotContainsString('data-conflict-box', $html);
+        $this->assertStringNotContainsString('data-banner-bentrok', $html);
+        $this->assertStringContainsString('R.101', $html);
     }
 
     public function test_non_admin_tidak_dapat_mengakses_halaman_atau_export(): void

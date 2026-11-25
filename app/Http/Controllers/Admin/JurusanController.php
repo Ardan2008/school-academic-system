@@ -9,6 +9,7 @@ use App\Models\KelasRombel;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\XlsxExportService;
+use App\Support\PerbandinganData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -110,6 +111,14 @@ class JurusanController extends Controller
                 'status' => 'error',
                 'message' => "Jurusan {$jurusan->nama} masih dipakai oleh kelas maupun siswa, jadi namanya tidak bisa diganti. Statusnya masih bisa diubah.",
             ], 422);
+        }
+
+        if (PerbandinganData::identik($jurusan, $data)) {
+            return response()->json([
+                'status' => 'success',
+                'message' => "Jurusan {$jurusan->nama} berhasil diperbarui.",
+                'data' => ['jurusan' => $this->baris($jurusan)],
+            ]);
         }
 
         $jurusan->update($data);

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ActivityLog;
 use App\Models\User;
 use App\Services\ActivityLogger;
+use App\Support\PerbandinganData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
@@ -69,6 +70,22 @@ class ProfileController extends Controller
 
         $validated = $validator->validated();
 
+        if (Hash::check($validated['password'], $user->password) && ! (bool) $user->must_change_password) {
+            $redirect = route('dashboard.'.$user->role.'.profile.index');
+
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'status' => 'success',
+                    'message' => 'Password berhasil diperbarui.',
+                    'data' => [
+                        'redirect' => $redirect,
+                    ],
+                ]);
+            }
+
+            return redirect()->to($redirect)->with('success', 'Password berhasil diperbarui.');
+        }
+
         $user->update([
             'password' => $validated['password'],
             'must_change_password' => false,
@@ -125,6 +142,27 @@ class ProfileController extends Controller
             default => 'jpg',
         };
 
+        $old = trim((string) ($user->profile_photo_path ?? ''));
+        $oldStoragePath = $this->relativeStoredPhotoPath($old);
+        $hashLama = PerbandinganData::hashFileTersimpan($oldStoragePath !== '' ? $oldStoragePath : null);
+        $hashBaru = PerbandinganData::hashFileUnggahan($file);
+
+        if ($hashLama !== null && PerbandinganData::sama($hashBaru, $hashLama)) {
+            $payload = [
+                'status' => 'success',
+                'message' => 'Foto profil berhasil diperbarui.',
+                'data' => [
+                    'photo_url' => $user->fresh()->profilePhotoUrl(),
+                ],
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json($payload);
+            }
+
+            return redirect()->route('dashboard.'.$user->role.'.profile.index')->with('success', $payload['message']);
+        }
+
         $dir = 'profile-photos/'.$user->role;
         $name = $user->id.'_'.now()->format('YmdHis').'_'.Str::lower(Str::random(12)).'.'.$ext;
         $path = $file->storeAs($dir, $name, 'public');
@@ -136,7 +174,6 @@ class ProfileController extends Controller
             abort(500, $msg);
         }
 
-        $old = trim((string) ($user->profile_photo_path ?? ''));
         try {
             $user->forceFill(['profile_photo_path' => $path])->save();
         } catch (\Throwable $e) {
@@ -169,6 +206,22 @@ class ProfileController extends Controller
         $user = $this->resolveRoleUser($request);
         $old = trim((string) ($user->profile_photo_path ?? ''));
 
+        if ($old === '') {
+            $payload = [
+                'status' => 'success',
+                'message' => 'Foto profil berhasil dihapus.',
+                'data' => [
+                    'photo_url' => null,
+                ],
+            ];
+
+            if ($request->expectsJson()) {
+                return response()->json($payload);
+            }
+
+            return redirect()->route('dashboard.'.$user->role.'.profile.index')->with('success', $payload['message']);
+        }
+
         $user->forceFill(['profile_photo_path' => null])->save();
         $this->deleteStoredPhoto($old);
         $this->recordProfileActivity('Menghapus foto profil.', $user);
@@ -195,16 +248,8 @@ class ProfileController extends Controller
             return;
         }
 
-        $publicPrefix = rtrim((string) config('filesystems.disks.public.url', '/storage'), '/').'/';
-        $relative = $path;
-        if (str_starts_with($relative, $publicPrefix)) {
-            $relative = substr($relative, strlen($publicPrefix));
-        } elseif (str_starts_with($relative, '/storage/')) {
-            $relative = substr($relative, strlen('/storage/'));
-        }
-        $relative = ltrim($relative, '/');
-
-        if ($relative === '' || str_starts_with($relative, 'http://') || str_starts_with($relative, 'https://')) {
+        $relative = $this->relativeStoredPhotoPath($path);
+        if ($relative === '') {
             return;
         }
 
@@ -215,6 +260,28 @@ class ProfileController extends Controller
         } catch (\Throwable $e) {
             report($e);
         }
+    }
+
+    protected function relativeStoredPhotoPath(?string $path): string
+    {
+        $path = trim((string) $path);
+        if ($path === '') {
+            return '';
+        }
+
+        $publicPrefix = rtrim((string) config('filesystems.disks.public.url', '/storage'), '/').'/';
+        if (str_starts_with($path, $publicPrefix)) {
+            $path = substr($path, strlen($publicPrefix));
+        } elseif (str_starts_with($path, '/storage/')) {
+            $path = substr($path, strlen('/storage/'));
+        }
+        $path = ltrim($path, '/');
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return '';
+        }
+
+        return $path;
     }
 
     protected function recordProfileActivity(string $message, User $user): void
