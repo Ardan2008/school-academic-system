@@ -656,7 +656,7 @@ class AdminPenugasanMengajarTest extends TestCase
             ->get(route('dashboard.admin.data-guru.index'))
             ->assertOk()
             ->assertSee('Kelas Diampu')
-            ->assertSee('Lihat Detail')
+            ->assertSee('Lihat Detail Guru')
             ->assertViewHas('guruData', function (array $data) use ($guru): bool {
                 $baris = collect($data['guru'])->firstWhere('id', $guru->id);
                 $ids = collect($baris['kelas_diampu'] ?? [])->pluck('id')->all();

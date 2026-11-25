@@ -13,8 +13,10 @@ use App\Models\User;
 use App\Services\InfoSiswa;
 use App\Services\JamBelajar;
 use App\Services\StatistikNilai;
+use App\Support\PerbandinganData;
 use App\Support\Periode;
 use App\Support\Waktu;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -162,7 +164,7 @@ class AkademikController extends Controller
             'pengumpulan' => fn ($query) => $query->where('user_id', $siswa->id),
         ]);
 
-                $pengumpulan = $tugas->pengumpulan->first();
+        $pengumpulan = $tugas->pengumpulan->first();
         $status = $this->infoSiswa->statusTugas($tugas);
         $jurusan = trim((string) $tugas->jurusan);
         $memilikiFile = $tugas->file_path !== null;
@@ -281,13 +283,21 @@ class AkademikController extends Controller
             'jawaban.max' => 'Jawaban atau catatan pengumpulan maksimal 5000 karakter.',
         ]);
 
-        PengumpulanTugas::updateOrCreate(
-            ['tugas_id' => $tugas->id, 'user_id' => $siswa->id],
-            [
-                'dikumpulkan_at' => now(),
-                'jawaban' => trim($data['jawaban']),
-            ]
-        );
+        $jawaban = trim($data['jawaban']);
+        $pengumpulan = PengumpulanTugas::query()
+            ->where('tugas_id', $tugas->id)
+            ->where('user_id', $siswa->id)
+            ->first(['jawaban']);
+
+        if ($pengumpulan === null || ! PerbandinganData::sama($pengumpulan->jawaban, $jawaban)) {
+            PengumpulanTugas::updateOrCreate(
+                ['tugas_id' => $tugas->id, 'user_id' => $siswa->id],
+                [
+                    'dikumpulkan_at' => now(),
+                    'jawaban' => $jawaban,
+                ]
+            );
+        }
 
         return redirect()
             ->route('dashboard.siswa.tugas-materi.index', ['tab' => 'tugas'])
@@ -320,7 +330,7 @@ class AkademikController extends Controller
                 ->with('error', $pesan);
         }
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('dashboard.siswa.rapor.pdf', $data)
+        $pdf = Pdf::loadView('dashboard.siswa.rapor.pdf', $data)
             ->setPaper('a4', 'portrait');
 
         $namaSiswa = $this->segmenNamaFile((string) $siswa->name, 'Siswa');

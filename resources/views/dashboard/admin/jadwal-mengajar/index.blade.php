@@ -44,6 +44,14 @@
             return $stat;
         })->all();
         $adaMasalah = count($saran) > 0 || count($bentrokGroups) > 0 || count($catatanPerhatian) > 0;
+        $jumlahKonflik = collect($bentrokGroups)->sum(fn (array $grup): int => count($grup['konflik'] ?? []));
+        $jenisBentrok = collect($bentrokGroups)
+            ->flatMap(fn (array $grup): array => array_map(
+                fn (array $konflik): string => $konflik['judul'] ?? 'Bentrok',
+                $grup['konflik'] ?? []
+            ))
+            ->unique()
+            ->implode(', ');
         $queryExport = array_filter([
             'tahun_ajaran' => $periode['tahun_ajaran'],
             'semester' => $periode['semester'],
@@ -62,8 +70,10 @@
          data-jadwal-page
          data-role="admin"
          data-dashboard
-         data-store-url="{{ route($routeNames['store']) }}"
-         data-update-template="{{ route($routeNames['update'], '__ID__') }}"
+          data-tahun-ajaran="{{ $periode['tahun_ajaran'] }}"
+          data-semester="{{ $periode['semester'] }}"
+          data-store-url="{{ route($routeNames['store']) }}"
+          data-update-template="{{ route($routeNames['update'], '__ID__') }}"
          data-intent-url="{{ route($routeNames['intent']) }}"
          data-buka-modal="{{ ($bukaModal || $errors->any()) ? '1' : '0' }}"
          data-errors-any="{{ $errors->any() ? '1' : '0' }}"
@@ -228,7 +238,7 @@
             <div class="jg-banner mt-4 px-4 py-3.5 sm:px-5" role="status">
                 <div class="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div class="flex min-w-0 items-center gap-3">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style="background:#FFF1D6; color:#7A4300;">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style="background:{{ $jumlahKonflik > 0 ? '#FDECEC' : '#FFF1D6' }}; color:{{ $jumlahKonflik > 0 ? '#A3261C' : '#7A4300' }};">
                             <x-lucide-triangle-alert class="h-4 w-4" aria-hidden="true" />
                         </span>
                         <div class="min-w-0">
@@ -236,7 +246,10 @@
                                 <span>{{ count($saran) }}</span> jadwal perlu disesuaikan dengan jam belajar terbaru
                             </p>
                             <p class="mt-0.5 truncate text-xs jg-muted">
-                                Ditemukan <span>{{ count($bentrokGroups) }}</span> kelompok bentrok pada filter ini.
+                                Ditemukan <span data-banner-bentrok>{{ $jumlahKonflik }}</span> konflik pada filter ini.
+                                @if ($jenisBentrok !== '')
+                                    <span class="font-semibold text-[#A3261C]">{{ $jenisBentrok }}</span>
+                                @endif
                             </p>
                         </div>
                     </div>
@@ -326,6 +339,9 @@
             'bisaKelola' => true,
             'mode' => 'admin',
         ])
+        @if (($mode ?? 'admin') === 'admin')
+            @include('dashboard.admin.jadwal-mengajar.partials.bentrok')
+        @endif
         @include('dashboard.admin.jadwal-mengajar.partials.form', ['items' => $itemsTampil])
     </div>
 @endsection

@@ -11,6 +11,7 @@ use App\Services\ActivityLogger;
 use App\Services\GuruAkademik;
 use App\Services\NotifikasiAkademikService;
 use App\Support\Kelas;
+use App\Support\PerbandinganData;
 use App\Support\Periode;
 use App\Support\StrukturKelas;
 use Illuminate\Http\JsonResponse;
@@ -208,11 +209,14 @@ class InputNilaiController extends Controller
                 ];
 
                 $nilai = $baris['nilai'] ?? null;
+                $lama = Nilai::query()->where($kunci)->first(['id', 'kelas', 'jurusan', 'nilai', 'kkm']);
 
                 // Nilai kosong berarti guru mengosongkan baris ini, jadi catatan
                 // lama (kalau ada) dihapus supaya tidak ada nilai tertinggal.
                 if ($nilai === null || $nilai === '') {
-                    $dihapus += Nilai::query()->where($kunci)->delete();
+                    if ($lama !== null) {
+                        $dihapus += Nilai::query()->where($kunci)->delete();
+                    }
 
                     continue;
                 }
@@ -225,20 +229,30 @@ class InputNilaiController extends Controller
 
                 $nilaiBaru = round((float) $nilai, 2);
                 $kkmBaru = round((float) $kkm, 2);
-                $lama = Nilai::query()->where($kunci)->first(['nilai', 'kkm']);
 
-                Nilai::query()->updateOrCreate($kunci, [
+                $perubahan = [
                     'kelas' => Kelas::normalize((string) $murid->kelas),
                     'jurusan' => trim((string) $murid->jurusan),
                     'nilai' => $nilaiBaru,
                     'kkm' => $kkmBaru,
-                ]);
+                ];
+
+                if ($lama !== null && PerbandinganData::identik($lama, $perubahan, [
+                    'nilai' => fn ($nilai, Nilai $model) => $model->nilai === null ? null : (float) $model->nilai,
+                    'kkm' => fn ($kkm, Nilai $model) => $model->kkm === null ? null : (float) $model->kkm,
+                ])) {
+                    continue;
+                }
+
+                Nilai::query()->updateOrCreate($kunci, $perubahan);
 
                 // Baris baru atau nilai/kkm yang benar-benar bergeser layak
                 // diberitahukan; menyimpan angka yang sama bukan perubahan.
                 if ($lama === null
-                    || (float) $lama->nilai !== $nilaiBaru
-                    || (float) $lama->kkm !== $kkmBaru) {
+                    || $lama->nilai === null
+                    || $lama->kkm === null
+                    || ! PerbandinganData::sama((float) $lama->nilai, $nilaiBaru)
+                    || ! PerbandinganData::sama((float) $lama->kkm, $kkmBaru)) {
                     $nilaiBerubah[] = [$murid, $nilaiBaru, $kkmBaru];
                 }
 

@@ -208,8 +208,17 @@ class AuthController extends Controller
             ], 422);
         }
 
+        $validated = $validator->validated();
+
+        if (Hash::check($validated['password'], $user->password)) {
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Password berhasil diperbarui',
+            ]);
+        }
+
         $user->update([
-            'password' => Hash::make($request->password),
+            'password' => Hash::make($validated['password']),
         ]);
 
         app(ActivityLogger::class)->record(ActivityLog::TIPE_PASSWORD, 'Mengubah password akun melalui API.', $user);

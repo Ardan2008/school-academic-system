@@ -1094,6 +1094,13 @@
                     f.nama.classList.remove('bg-slate-100', 'text-slate-500');
                 }
 
+                const perubahanJurusan = window.saskansaChange?.bind?.(form, {
+                    save: '[data-modal-save]',
+                    always: !k,
+                });
+                perubahanJurusan?.busy?.(false);
+                if (k) perubahanJurusan?.snapshot?.();
+
                 // Urutan muncul isi formulir (dipakai animasi bertahap di CSS)
                 [...form.children].forEach((el, i) => el.style.setProperty('--k', i));
 

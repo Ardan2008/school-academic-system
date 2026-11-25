@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\GuruAkademik;
 use App\Support\FileMateri;
 use App\Support\Kelas;
+use App\Support\PerbandinganData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -231,33 +232,41 @@ class TugasMateriController extends Controller
         $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'tugas']);
         $message = 'Tugas berhasil diperbarui.';
 
+        $adaPerubahanData = ! PerbandinganData::identik($tugas, $data);
+        $pathBaru = null;
+
         if ($file !== null) {
-            $pathBaru = $this->simpanFileLampiran($file, 'tugas');
-            $data += $this->dataFileLampiran($file, $pathBaru);
+            $hashLama = PerbandinganData::hashFileTersimpan($pathLama, 'local');
 
-            try {
+            if ($hashLama === null || ! PerbandinganData::sama(PerbandinganData::hashFileUnggahan($file), $hashLama)) {
+                $pathBaru = $this->simpanFileLampiran($file, 'tugas');
+                $data += $this->dataFileLampiran($file, $pathBaru);
+            }
+        } elseif ($hapusLampiran && $pathLama !== null) {
+            $data += $this->dataFileLampiranKosong();
+            $lampiranDihapus = true;
+        }
+
+        if ($adaPerubahanData || $pathBaru !== null || $lampiranDihapus) {
+            if ($pathBaru !== null) {
+                try {
+                    DB::transaction(fn () => $tugas->update($data));
+                } catch (Throwable $exception) {
+                    Storage::disk('local')->delete($pathBaru);
+
+                    throw $exception;
+                }
+
+                if ($pathLama !== null && $pathLama !== $pathBaru) {
+                    Storage::disk('local')->delete($pathLama);
+                }
+            } else {
                 DB::transaction(fn () => $tugas->update($data));
-            } catch (Throwable $exception) {
-                Storage::disk('local')->delete($pathBaru);
 
-                throw $exception;
+                if ($lampiranDihapus && $pathLama !== null) {
+                    Storage::disk('local')->delete($pathLama);
+                }
             }
-
-            if ($pathLama !== null && $pathLama !== $pathBaru) {
-                Storage::disk('local')->delete($pathLama);
-            }
-        } else {
-            if ($hapusLampiran) {
-                $data += $this->dataFileLampiranKosong();
-            }
-
-            DB::transaction(fn () => $tugas->update($data));
-
-            if ($hapusLampiran && $pathLama !== null) {
-                Storage::disk('local')->delete($pathLama);
-            }
-
-            $lampiranDihapus = $hapusLampiran;
         }
 
         $pesanHapusLampiran = $lampiranDihapus ? 'Lampiran tugas berhasil dihapus.' : null;
@@ -373,13 +382,21 @@ class TugasMateriController extends Controller
         $nilai = filled($data['nilai'] ?? null) ? round((float) $data['nilai'], 2) : null;
         $umpanBalik = filled($data['umpan_balik'] ?? null) ? trim($data['umpan_balik']) : null;
 
-        $pengumpulan->update([
+        $status = $nilai === null
+            ? PengumpulanTugas::STATUS_DIKUMPULKAN
+            : PengumpulanTugas::STATUS_DINILAI;
+
+        if (! PerbandinganData::identik($pengumpulan, [
             'nilai' => $nilai,
             'umpan_balik' => $umpanBalik,
-            'status' => $nilai === null
-                ? PengumpulanTugas::STATUS_DIKUMPULKAN
-                : PengumpulanTugas::STATUS_DINILAI,
-        ]);
+            'status' => $status,
+        ])) {
+            $pengumpulan->update([
+                'nilai' => $nilai,
+                'umpan_balik' => $umpanBalik,
+                'status' => $status,
+            ]);
+        }
 
         return redirect()
             ->route('dashboard.guru.tugas-materi.pengumpulan', $pengumpulan->tugas_id)
@@ -431,45 +448,53 @@ class TugasMateriController extends Controller
 
         $data = $this->validasiMateri($request, $guru, false);
         $file = $request->file('file');
+        $hapusLampiran = $request->boolean('hapus_lampiran');
         $pathLama = $materi->file_path;
         $redirect = route('dashboard.guru.tugas-materi.index', ['tab' => 'materi']);
         $message = 'Materi berhasil diperbarui.';
 
-        if ($file === null) {
-            DB::transaction(fn () => $materi->update($data));
+        $adaPerubahanData = ! PerbandinganData::identik($materi, $data);
+        $pathBaru = null;
+        $lampiranDihapus = false;
 
-            if ($request->expectsJson()) {
-                return response()->json([
-                    'ok' => true,
-                    'message' => $message,
-                    'redirect' => $redirect,
-                ]);
+        if ($file !== null) {
+            $hashLama = PerbandinganData::hashFileTersimpan($pathLama, 'local');
+
+            if ($hashLama === null || ! PerbandinganData::sama(PerbandinganData::hashFileUnggahan($file), $hashLama)) {
+                $pathBaru = $this->simpanFileLampiran($file, 'materi');
+                $data += [
+                    'file_path' => $pathBaru,
+                    'nama_file' => FileMateri::namaAman($file->getClientOriginalName()),
+                    'mime_type' => FileMateri::mime($file),
+                    'ekstensi' => FileMateri::ekstensi($file),
+                    'ukuran_bytes' => $file->getSize(),
+                ];
+            }
+        } elseif ($hapusLampiran && $pathLama !== null) {
+            $data += $this->dataFileLampiranKosong();
+            $lampiranDihapus = true;
+        }
+
+        if ($adaPerubahanData || $pathBaru !== null || $lampiranDihapus) {
+            if ($pathBaru !== null) {
+                try {
+                    DB::transaction(fn () => $materi->update($data));
+                } catch (Throwable $exception) {
+                    Storage::disk('local')->delete($pathBaru);
+
+                    throw $exception;
+                }
+            } else {
+                DB::transaction(fn () => $materi->update($data));
             }
 
-            return redirect()
-                ->to($redirect)
-                ->with('success', $message);
-        }
+            if ($pathBaru !== null && $pathLama !== null && $pathLama !== $pathBaru) {
+                Storage::disk('local')->delete($pathLama);
+            }
 
-        $pathBaru = $this->simpanFileLampiran($file, 'materi');
-        $data += [
-            'file_path' => $pathBaru,
-            'nama_file' => FileMateri::namaAman($file->getClientOriginalName()),
-            'mime_type' => FileMateri::mime($file),
-            'ekstensi' => FileMateri::ekstensi($file),
-            'ukuran_bytes' => $file->getSize(),
-        ];
-
-        try {
-            DB::transaction(fn () => $materi->update($data));
-        } catch (Throwable $exception) {
-            Storage::disk('local')->delete($pathBaru);
-
-            throw $exception;
-        }
-
-        if ($pathLama !== null && $pathLama !== $pathBaru) {
-            Storage::disk('local')->delete($pathLama);
+            if ($lampiranDihapus && $pathLama !== null) {
+                Storage::disk('local')->delete($pathLama);
+            }
         }
 
         if ($request->expectsJson()) {

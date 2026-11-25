@@ -1222,6 +1222,13 @@
                     f.jurusan.classList.remove('bg-slate-100', 'text-slate-500');
                 }
 
+                const perubahanKelas = window.saskansaChange?.bind?.(form, {
+                    save: '[data-modal-save]',
+                    always: !k,
+                });
+                perubahanKelas?.busy?.(false);
+                if (k) perubahanKelas?.snapshot?.();
+
                 // Urutan muncul isi formulir (dipakai animasi bertahap di CSS)
                 [...form.children].forEach((el, i) => el.style.setProperty('--k', i));
 

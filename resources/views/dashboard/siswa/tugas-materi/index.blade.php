@@ -766,7 +766,7 @@
                                   placeholder="Tulis jawaban atau catatan pengumpulan..."
                                   class="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-primary-50 focus:ring-2 focus:ring-primary-50/30"></textarea>
                         <div class="mt-1 flex items-center justify-between text-xs text-slate-400">
-                            <span data-submit-error hidden role="alert" class="font-medium text-red-600">Jawaban wajib diisi.</span>
+                            <span data-submit-error role="alert" class="hidden font-medium text-red-600">Jawaban wajib diisi.</span>
                             <span class="ml-auto tabular-nums"><span data-submit-count>0</span>/5000 karakter</span>
                         </div>
                     </div>
@@ -1157,7 +1157,7 @@
                     submitButton.disabled = false;
                     submitClose.disabled = false;
                     jawaban.readOnly = false;
-                    inlineError.hidden = true;
+                    inlineError.classList.add('hidden');
                 };
 
                 const openSubmit = (source, trigger) => {
@@ -1176,6 +1176,9 @@
 
                     jawaban.value = source.dataset.jawaban ?? '';
                     charCount.textContent = String(jawaban.value.length);
+                    const change = window.saskansaChange?.bind(form, { save: '[data-submit-confirm]' });
+                    change?.refresh();
+                    change?.snapshot();
                     openModal(submitModal, trigger);
                     jawaban.focus();
                 };
@@ -1276,7 +1279,7 @@
 
                 jawaban.addEventListener('input', () => {
                     charCount.textContent = String(jawaban.value.length);
-                    inlineError.hidden = true;
+                    inlineError.classList.add('hidden');
                 });
 
                 form.addEventListener('submit', (event) => {
@@ -1287,7 +1290,7 @@
 
                     if (jawaban.value.trim() === '') {
                         event.preventDefault();
-                        inlineError.hidden = false;
+                        inlineError.classList.remove('hidden');
                         jawaban.focus();
                         return;
                     }

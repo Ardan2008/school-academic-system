@@ -6,6 +6,7 @@ use App\Models\JadwalPelajaran;
 use App\Models\KelasRombel as KelasModel;
 use App\Models\SesiJamBelajar;
 use App\Models\User;
+use App\Support\PerbandinganData;
 use App\Support\Periode;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -211,18 +212,20 @@ class JadwalManajemenService
         $data = $this->dataJadwal($request->all(), $guru, $periode);
 
         return DB::transaction(function () use ($jadwal, $data, $sebelum, $actor): JadwalPelajaran {
-            $jadwal->update($data);
-            $jadwal->load(['guru', 'mataPelajaran']);
+            if (! PerbandinganData::identik($jadwal, $data)) {
+                $jadwal->update($data);
+                $jadwal->load(['guru', 'mataPelajaran']);
 
-            $this->jadwal->catatPerubahanCrud(
-                $actor,
-                'ubah',
-                $sebelum,
-                $this->snapshot($jadwal),
-                $jadwal,
-            );
+                $this->jadwal->catatPerubahanCrud(
+                    $actor,
+                    'ubah',
+                    $sebelum,
+                    $this->snapshot($jadwal),
+                    $jadwal,
+                );
+            }
 
-            return $jadwal;
+            return $jadwal->loadMissing(['guru', 'mataPelajaran']);
         });
     }
 

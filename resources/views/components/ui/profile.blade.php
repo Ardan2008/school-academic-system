@@ -266,7 +266,7 @@
                     <x-lucide-x class="h-4 w-4" />
                     Batal
                 </button>
-                <button type="button" id="photo-crop-save" class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-60 px-4 text-xs font-semibold text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70">
+                <button type="button" id="photo-crop-save" disabled class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-60 px-4 text-xs font-semibold text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70 disabled:cursor-not-allowed disabled:opacity-60">
                     <x-lucide-save class="h-4 w-4" />
                     Simpan Foto
                 </button>
@@ -605,7 +605,8 @@
                 <button
                     type="submit"
                     id="password-save-btn"
-                    class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-60 px-4 text-xs font-medium text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70 sm:h-9 sm:flex-none"
+                    disabled
+                    class="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-primary-60 px-4 text-xs font-medium text-white shadow-md shadow-primary-60/25 transition hover:bg-primary-70 disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:flex-none"
                 >
                     <x-lucide-save class="h-4 w-4" />
                     Simpan
@@ -651,6 +652,11 @@
             let cropInertTimer = null;
             let cropSaving = false;
 
+            const syncCropSave = () => {
+                if (cropSave) cropSave.disabled = cropSaving || !cropState.image || !photoInput?.files?.[0];
+            };
+            syncCropSave();
+
             const showPhotoError = (message) => {
                 if (!photoError) return;
                 photoError.textContent = message;
@@ -675,6 +681,7 @@
             const setCropBusy = (busy) => {
                 cropSaving = busy;
                 setBusy(cropSave, busy);
+                syncCropSave();
                 if (photoDelete) setBusy(photoDelete, busy);
                 if (photoInput) {
                     photoInput.disabled = busy;
@@ -692,6 +699,7 @@
                 cropState.y = 0;
                 cropState.scale = 1;
                 cropState.minScale = 1;
+                syncCropSave();
             };
 
             const openCropModal = () => {
@@ -808,18 +816,20 @@
                 if (cropSaving) return;
                 clearPhotoError();
                 const file = photoInput.files?.[0];
-                if (!file) return;
+                if (!file) { syncCropSave(); return; }
                 const mime = (file.type || '').toLowerCase();
                 const ext = (file.name.split('.').pop() || '').toLowerCase();
                 const extAllowed = ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
                 if ((mime && !ALLOWED_PHOTO_TYPES.includes(mime)) || (!mime && !extAllowed)) {
                     reportPhotoError('Format foto harus JPG, JPEG, PNG, atau WEBP.');
                     photoInput.value = '';
+                    syncCropSave();
                     return;
                 }
                 if (file.size > MAX_PHOTO_BYTES) {
                     reportPhotoError('Ukuran foto maksimal 2 MB.');
                     photoInput.value = '';
+                    syncCropSave();
                     return;
                 }
                 const reader = new FileReader();
@@ -842,15 +852,21 @@
                         if (cropZoomValue) cropZoomValue.textContent = `${minPct}%`;
                         clampOffsets();
                         drawCrop();
+                        syncCropSave();
                         openCropModal();
                     };
                     image.onerror = () => {
                         reportPhotoError('File foto tidak dapat dibaca. Silakan pilih foto lain.');
                         photoInput.value = '';
+                        syncCropSave();
                     };
                     image.src = String(reader.result || '');
                 };
-                reader.onerror = () => reportPhotoError('File foto tidak dapat dibaca. Silakan pilih foto lain.');
+                reader.onerror = () => {
+                    reportPhotoError('File foto tidak dapat dibaca. Silakan pilih foto lain.');
+                    photoInput.value = '';
+                    syncCropSave();
+                };
                 reader.readAsDataURL(file);
             });
 
@@ -1114,6 +1130,16 @@
             const modal = $('password-modal');
             const pwForm = $('password-form');
             const toggles = modal.querySelectorAll('[data-toggle-password]');
+            const passwordSave = $('password-save-btn');
+            const syncPasswordSave = () => {
+                if (!passwordSave) return;
+                const current = $('modal-current-password')?.value ?? '';
+                const pw = $('modal-password')?.value ?? '';
+                const confirmation = $('modal-password-confirmation')?.value ?? '';
+                passwordSave.disabled = !current || pw.length < 8 || pw !== confirmation;
+            };
+            syncPasswordSave();
+            pwForm.addEventListener('input', syncPasswordSave);
 
             const openModal = () => {
                 modal.removeAttribute('inert');
@@ -1134,6 +1160,7 @@
                     if ($(btn.dataset.target).type === 'text') btn.click();
                 });
                 pwForm.reset();
+                syncPasswordSave();
             };
 
             $('open-password-modal').addEventListener('click', openModal);
@@ -1285,6 +1312,7 @@
 
                         if (res.ok && data.status === 'success') {
                             pwForm.reset();
+                            syncPasswordSave();
                             Swal.fire({
                                 icon: 'success',
                                 title: 'Berhasil',

@@ -1607,6 +1607,28 @@
                 const addTugasUploader = setupFileUploader(document.querySelector('[data-file-uploader="add-tugas"]'), 'add');
                 const editTugasUploader = setupFileUploader(document.querySelector('[data-file-uploader="edit-tugas"]'), 'edit');
 
+                function editLampiranState(root) {
+                    if (!root) return '';
+                    const file = root.querySelector('input[type="file"]')?.files?.[0];
+                    const hapus = root.querySelector('[data-hapus-lampiran-input]')?.value ?? '0';
+                    const stored = root.querySelector('[data-edit-stored-card]');
+                    const teks = (selector) => (stored?.querySelector(selector)?.textContent || '').trim();
+                    const href = (selector) => stored?.querySelector(selector)?.getAttribute('href') || '';
+                    return [
+                        stored && !stored.classList.contains('hidden') ? '1' : '0',
+                        teks('[data-stored-file-nama], [data-materi-edit-file-nama]'),
+                        teks('[data-stored-file-format], [data-materi-edit-file-format]'),
+                        teks('[data-stored-file-ukuran], [data-materi-edit-file-ukuran]'),
+                        href('[data-stored-file-preview], [data-materi-edit-file-preview]'),
+                        href('[data-stored-file-unduh], [data-materi-edit-file-unduh]'),
+                        hapus,
+                        file ? `${file.name}:${file.size}:${file.lastModified}` : '',
+                    ].join('|');
+                }
+
+                const editTugasUploaderState = () => editLampiranState(document.querySelector('[data-file-uploader="edit-tugas"]'));
+                const editMateriUploaderState = () => editLampiranState(document.querySelector('[data-materi-uploader="edit"]'));
+
                 const tambahMateriModal = document.getElementById('materi-tambah-modal');
 
                 if (tambahMateriModal) {
@@ -1851,6 +1873,10 @@
                             } catch (e) {}
                         }
                     });
+                    const pasangChange = () => window.saskansaChange?.bind(form, {
+                        save: '[data-tugas-edit-simpan]',
+                        sources: () => ({ lampiran: editTugasUploaderState() }),
+                    })?.snapshot();
                     function buka(btn) {
                         trigger = btn || document.activeElement;
                         submitting = false;
@@ -1871,6 +1897,7 @@
                             preview: d.filePreview || '',
                             unduh: d.fileUnduh || ''
                         });
+                        pasangChange();
                         ctrl?.animateIn(judul);
                     }
                     if (modalEl.dataset.open === 'true') {
@@ -1888,6 +1915,8 @@
                     modalEl.querySelector('[data-tugas-edit-backdrop]')?.addEventListener('click', () => { if (!submitting) ctrl?.hide(); });
                     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalEl.dataset.open === 'true' && !submitting) ctrl?.hide(); });
                     form?.addEventListener('submit', (e) => { if (submitting) { e.preventDefault(); return; } submitting = true; if (simpan) simpan.disabled = true; if (simpanLabel) simpanLabel.textContent = 'Menyimpan...'; editTugasUploader?.markUploading(); });
+                    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', pasangChange, { once: true });
+                    else pasangChange();
                 })();
 
                 // Edit Materi (modal, tanpa pindah halaman)
@@ -1916,6 +1945,10 @@
                             } catch (e) {}
                         }
                     });
+                    const pasangChange = () => window.saskansaChange?.bind(form, {
+                        save: '[data-materi-edit-simpan]',
+                        sources: () => ({ lampiran: editMateriUploaderState() }),
+                    })?.snapshot();
                     function buka(btn) {
                         trigger = btn || document.activeElement;
                         submitting = false;
@@ -1936,6 +1969,7 @@
                             preview: d.filePreview || '',
                             unduh: d.fileUnduh || ''
                         });
+                        pasangChange();
                         ctrl?.animateIn(judul);
                     }
                     if (modalEl.dataset.open === 'true') {
@@ -1953,6 +1987,8 @@
                     modalEl.querySelector('[data-materi-form-backdrop]')?.addEventListener('click', () => { if (!submitting) ctrl?.hide(); });
                     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && modalEl.dataset.open === 'true' && !submitting) ctrl?.hide(); });
                     form?.addEventListener('submit', (e) => { if (submitting) { e.preventDefault(); return; } submitting = true; if (simpan) simpan.disabled = true; if (simpanLabel) simpanLabel.textContent = 'Menyimpan...'; editMateriUploader?.markUploading(); });
+                    if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', pasangChange, { once: true });
+                    else pasangChange();
                 })();
 
             })();
