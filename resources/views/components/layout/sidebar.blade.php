@@ -6,7 +6,7 @@
     $allMenus = [
         'admin' => [
             ['label' => 'Dashboard', 'route' => 'dashboard.admin.index', 'icon' => 'layout-dashboard'],
-            ['label' => 'Data Guru', 'route' => 'dashboard.admin.data-guru.index', 'icon' => 'users'],
+            ['label' => 'Data Guru', 'route' => 'dashboard.admin.data-guru.index', 'icon' => 'user-round'],
             ['label' => 'Data Siswa', 'route' => 'dashboard.admin.data-siswa.index', 'icon' => 'graduation-cap'],
             ['label' => 'Data Kelas', 'route' => 'dashboard.admin.data-kelas.index', 'icon' => 'school'],
             ['label' => 'Data Jurusan', 'route' => 'dashboard.admin.data-jurusan.index', 'icon' => 'layers'],
@@ -23,7 +23,7 @@
 
         'guru' => [
             ['label' => 'Dashboard', 'route' => 'dashboard.guru.index', 'icon' => 'layout-dashboard'],
-            ['label' => 'Data Siswa', 'route' => 'dashboard.guru.data-siswa.index', 'icon' => 'users'],
+            ['label' => 'Data Siswa', 'route' => 'dashboard.guru.data-siswa.index', 'icon' => 'graduation-cap'],
             ['label' => 'Jadwal Mengajar', 'route' => 'dashboard.guru.jadwal-pelajaran.index', 'icon' => 'calendar-days'],
             ['label' => 'Tugas & Materi', 'route' => 'dashboard.guru.tugas-materi.index', 'icon' => 'book-marked'],
             ['label' => 'Input Nilai', 'route' => 'dashboard.guru.input-nilai.index', 'icon' => 'square-pen'],
@@ -96,6 +96,34 @@
     #sidebar-backdrop { opacity: 0; pointer-events: none; }
     #sidebar-backdrop[data-open="true"] { opacity: 1; pointer-events: auto; }
 
+    #app-sidebar .sb-nav { scrollbar-gutter: stable; }
+
+    @supports (-moz-appearance: none) {
+        #app-sidebar .sb-nav {
+            scrollbar-width: thin;
+            scrollbar-color: var(--color-primary-60, #1E86FF) #f1f5f9;
+        }
+    }
+
+    #app-sidebar .sb-nav::-webkit-scrollbar { width: 6px; }
+
+    #app-sidebar .sb-nav::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 9999px;
+    }
+
+    #app-sidebar .sb-nav::-webkit-scrollbar-thumb {
+        background: var(--color-primary-60, #1E86FF);
+        background-clip: padding-box;
+        border: 1px solid #f1f5f9;
+        border-radius: 9999px;
+    }
+
+    #app-sidebar .sb-nav::-webkit-scrollbar-thumb:hover {
+        background: var(--color-primary-70, #1970D4);
+        background-clip: padding-box;
+    }
+
     /* ===== Mobile/tablet (< 1024px): panel melayang, buka / tutup saja ===== */
     @media (max-width: 1023.98px) {
         #app-sidebar {
@@ -121,16 +149,6 @@
             visibility: hidden;
             transition: transform .3s ease-in-out, visibility 0s linear .3s;
         }
-
-        /* Sembunyikan scrollbar di daftar menu (tetap bisa di-scroll) */
-        #app-sidebar .sb-nav {
-            scrollbar-width: none;          /* Firefox */
-            -ms-overflow-style: none;       /* Edge lama */
-        }
-
-        #app-sidebar .sb-nav::-webkit-scrollbar {
-            display: none;                  /* Chrome, Safari, Edge */
-        }
     }
 
     @media (min-width: 1024px) {
@@ -148,7 +166,7 @@
             position: fixed;
             left: var(--sidebar-w, 16rem);
             top: 1.75rem;
-            z-index: 60;
+            z-index: 99999;
             transform: translate(-50%, -50%);
             transition: left .3s ease-in-out, background-color .15s ease-out, color .15s ease-out;
         }
@@ -464,7 +482,7 @@
     aria-label="Tutup Sidebar"
     aria-pressed="false"
     aria-controls="app-sidebar"
-    class="hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-blue-50 hover:text-primary-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60 lg:flex"
+    class="z-[99999] hidden h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-blue-50 hover:text-primary-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-60 lg:flex"
 >
     <x-lucide-panel-left-close class="h-[18px] w-[18px]" data-collapse-icon="close" aria-hidden="true" />
     <x-lucide-panel-left-open class="h-[18px] w-[18px]" data-collapse-icon="open" aria-hidden="true" />
